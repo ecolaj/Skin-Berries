@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../types/supabase';
-import { Store, Calendar, FileText, Loader2, Printer, X, CheckCircle2, Slash, Clock, PackageCheck } from 'lucide-react';
+import { Store, Calendar, FileText, Loader2, Printer, X } from 'lucide-react';
 import { AlertModal } from '../components/AlertModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 
