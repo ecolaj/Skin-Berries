@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { ProfileModal } from './ProfileModal';
 import { ConfirmModal } from './ConfirmModal';
-import { Store, Settings, LogOut, PackageSearch, LayoutDashboard, Users, Box, ChevronDown, Target } from 'lucide-react';
+import { Store, Settings, LogOut, PackageSearch, LayoutDashboard, Users, Box, ChevronDown, Target, ClipboardList } from 'lucide-react';
 
 export const Layout = () => {
     const { user } = useAuth();
@@ -57,7 +57,7 @@ export const Layout = () => {
         { to: "/stores", icon: <Store size={20} />, label: "Tiendas" },
         { to: "/products", icon: <Box size={20} />, label: "Catálogo de Productos" },
         { to: "/restock", icon: <PackageSearch size={20} />, label: "Despachos e Inventario" },
-        { to: "/dispatch-history", icon: <Store size={20} />, label: "Historial de Órdenes" },
+        { to: "/dispatch-history", icon: <ClipboardList size={20} />, label: "Historial de Despachos" },
     ];
 
     const configItems = [
