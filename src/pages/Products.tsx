@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Database } from '../types/supabase';
 import { Plus, Loader2, ImageIcon, Pencil, X, Upload, Check } from 'lucide-react';
 import { AlertModal } from '../components/AlertModal';
+import { ProductModal } from '../components/ProductModal';
 
 type Product = Database['public']['Tables']['products']['Row'];
 
@@ -55,6 +56,8 @@ export const Products = () => {
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [selectedProductDetail, setSelectedProductDetail] = useState<Product | null>(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
     // Filtro activos / inactivos
     const [showInactive, setShowInactive] = useState(false);
@@ -82,7 +85,9 @@ export const Products = () => {
         ? products.filter((p) => !p.is_active)
         : products.filter((p) => p.is_active);
 
+    const activeCount = products.filter((p) => p.is_active).length;
     const inactiveCount = products.filter((p) => !p.is_active).length;
+    const totalGlobalCount = products.length;
 
     const fetchProducts = async () => {
         setLoading(true);
@@ -114,6 +119,11 @@ export const Products = () => {
         setImageFile(null);
         setImagePreview(product.image_url || null);
         setIsModalOpen(true);
+    };
+
+    const openDetailModal = (product: Product) => {
+        setSelectedProductDetail(product);
+        setIsDetailModalOpen(true);
     };
 
     const closeModal = () => {
@@ -215,7 +225,18 @@ export const Products = () => {
 
             {/* TABLA CON SCROLL INTERNO */}
             <div className="flex-1 flex flex-col min-h-0 bg-skin-card rounded-2xl shadow-sm border border-slate-100">
-                <div className="flex-1 overflow-y-auto rounded-xl">
+                <div className="p-4 border-b border-slate-100 bg-slate-50/60 rounded-t-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <h2 className="font-semibold text-slate-800">
+                            {showInactive ? 'Productos Inactivos' : 'Productos Vigentes'}: {showInactive ? inactiveCount : activeCount}
+                        </h2>
+                        <span className="text-slate-300">|</span>
+                        <span className="text-sm font-medium text-slate-500">
+                            Total Global: {totalGlobalCount}
+                        </span>
+                    </div>
+                </div>
+                <div className="flex-1 overflow-y-auto rounded-b-xl">
                     <table className="w-full text-left text-sm text-slate-600 relative">
                         <thead className="text-xs uppercase bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 sticky top-0 z-10 shadow-sm">
                             <tr>
@@ -234,7 +255,11 @@ export const Products = () => {
                                     {showInactive ? 'No hay productos inactivos.' : 'No hay productos en el catálogo.'}
                                 </td></tr>
                             ) : visibleProducts.map((product) => (
-                                <tr key={product.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <tr 
+                                        key={product.id} 
+                                        className="hover:bg-slate-50/50 transition-colors cursor-pointer group"
+                                        onClick={() => openDetailModal(product)}
+                                    >
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
@@ -265,7 +290,7 @@ export const Products = () => {
                                     <td className="px-6 py-4 text-right">
                                         {!isConsulta && (
                                             <button
-                                                onClick={() => openEditModal(product)}
+                                                onClick={(e) => { e.stopPropagation(); openEditModal(product); }}
                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-skin-accent border border-skin-accent/30 hover:bg-skin-blush text-sm font-medium transition-all"
                                             >
                                                 <Pencil size={14} />
@@ -394,6 +419,18 @@ export const Products = () => {
                 message={alertMessage}
                 onClose={() => setAlertOpen(false)}
             />
+
+            {/* Modal de Detalle de Producto */}
+            {selectedProductDetail && (
+                <ProductModal
+                    isOpen={isDetailModalOpen}
+                    onClose={() => {
+                        setIsDetailModalOpen(false);
+                        setSelectedProductDetail(null);
+                    }}
+                    product={selectedProductDetail}
+                />
+            )}
         </div>
     );
 };
