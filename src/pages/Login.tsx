@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { Loader2, Eye, EyeOff, ArrowLeft, Mail, Lock, User, Send, CheckCircle2 } from 'lucide-react';
 
 type AuthMode = 'login' | 'signup' | 'forgot' | 'success-signup' | 'success-forgot' | 'update-password';
@@ -16,6 +17,7 @@ export const Login = () => {
     const [isMounted, setIsMounted] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const navigate = useNavigate();
+    const { user } = useAuth();
 
     useEffect(() => {
         const timer = setTimeout(() => setIsMounted(true), 50);
@@ -32,6 +34,13 @@ export const Login = () => {
             subscription.unsubscribe();
         };
     }, []);
+
+    // Redirect to home after successful login
+    useEffect(() => {
+        if (user) {
+            navigate('/');
+        }
+    }, [user, navigate]);
 
     const resetMessages = () => {
         setError(null);
@@ -70,7 +79,9 @@ export const Login = () => {
             setError(error.message);
             setLoading(false);
         } else {
-            navigate('/');
+            // Successful login; auth state change will update user context.
+            // Delay navigation until user is set to avoid premature redirect.
+            setLoading(false);
         }
     };
 

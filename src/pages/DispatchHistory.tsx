@@ -194,7 +194,7 @@ export const DispatchHistory = () => {
                                 <th className="px-6 py-4">ID Orden</th>
                                 <th className="px-6 py-4">Fecha de Generación</th>
                                 <th className="px-6 py-4">Destino (Tienda)</th>
-                                <th className="px-6 py-4 text-center">Estado</th>
+                                <th className="px-6 py-4">Estado</th>
                                 <th className="px-6 py-4 text-right">Acciones</th>
                             </tr>
                         </thead>
@@ -231,7 +231,7 @@ export const DispatchHistory = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex items-center justify-center gap-1">
+                                        <div className="flex items-center justify-start gap-1">
                                             {/* PENDIENTE - Hito inicial */}
                                             <div className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all truncate ${
                                                 order.status === 'pendiente' 

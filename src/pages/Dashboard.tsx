@@ -33,8 +33,10 @@ import { InfoModal } from '../components/InfoModal';
 export const Dashboard = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [selectedMonth, setSelectedMonth] = useState<number | 'all'>(new Date().getMonth());
+    const [selectedYear, setSelectedYear] = useState<number | 'all'>(new Date().getFullYear());
+    const [selectedStore, setSelectedStore] = useState<string>('all');
+    const [storesList, setStoresList] = useState<any[]>([]);
     const [isInfoOpen, setIsInfoOpen] = useState(false);
     
     const [stats, setStats] = useState({
@@ -62,18 +64,21 @@ export const Dashboard = () => {
 
     useEffect(() => {
         fetchDashboardData();
-    }, [selectedMonth, selectedYear]);
+    }, [selectedMonth, selectedYear, selectedStore]);
 
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
             // Range for filtering orders
-            const startDate = new Date(selectedYear, selectedMonth, 1);
-            const endDate = new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59);
+            const yearNum = selectedYear === 'all' ? new Date().getFullYear() : selectedYear;
+            const monthNum = selectedMonth === 'all' ? 0 : selectedMonth;
+            
+            const startDate = new Date(yearNum, monthNum, 1);
+            const endDate = new Date(yearNum, monthNum + 1, 0, 23, 59, 59);
 
             // Fetching all necessary data
             const [
-                { data: stores },
+                { data: storesData },
                 { data: products },
                 { data: inventory },
                 { data: orders }
@@ -84,9 +89,12 @@ export const Dashboard = () => {
                 supabase.from('dispatch_orders').select('*, dispatch_order_items(*)')
             ]);
 
-            if (!stores || !products || !inventory || !orders) return;
+            if (!storesData || !products || !inventory || !orders) return;
+            setStoresList(storesData);
 
-            const activeStoreIds = stores.map(s => s.id);
+            const activeStoreIds = selectedStore === 'all' 
+                ? storesData.map(s => s.id) 
+                : [selectedStore];
 
             // --- CALCULATE STATS ---
             // 1. Valuation (Only for active stores)
@@ -104,16 +112,22 @@ export const Dashboard = () => {
             const healthyItems = filteredInventory.filter(i => i.current_stock >= i.base_stock).length;
             const healthIndex = filteredInventory.length > 0 ? (healthyItems / filteredInventory.length) * 100 : 0;
 
-            // 3. Orders in selected period
+            // 3. Orders in selected period and store
             const periodOrders = orders.filter(o => {
+                const isCorrectStore = activeStoreIds.includes(o.store_id);
+                if (!isCorrectStore) return false;
+
                 const date = new Date(o.created_at);
-                return date >= startDate && date <= endDate;
+                const matchesMonth = selectedMonth === 'all' || date.getMonth() === selectedMonth;
+                const matchesYear = selectedYear === 'all' || date.getFullYear() === selectedYear;
+                
+                return matchesMonth && matchesYear && o.status !== 'anulada';
             });
 
             setStats({
                 totalValuation: totalVal,
                 stockHealth: healthIndex,
-                activeStores: stores.length,
+                activeStores: selectedStore === 'all' ? storesData.length : 1,
                 monthlyOrders: periodOrders.length
             });
 
@@ -133,7 +147,7 @@ export const Dashboard = () => {
             // --- CHART DATA: STORE LOAD ---
             const storeOrderMap: Record<string, number> = {};
             periodOrders.forEach(o => {
-                const store = stores.find(s => s.id === o.store_id);
+                const store = storesData.find(s => s.id === o.store_id);
                 if (store) {
                     storeOrderMap[store.name] = (storeOrderMap[store.name] || 0) + 1;
                 }
@@ -156,19 +170,29 @@ export const Dashboard = () => {
                 .slice(0, 5)
                 .map(i => ({ name: i.name.substring(0, 15), cantidad: i.qty })));
 
-            // --- REAL TREND DATA: Orders by day in the selected month ---
-            const daysInMonth = endDate.getDate();
-            const dailyStats = Array.from({ length: daysInMonth }, (_, i) => ({
-                day: i + 1,
-                ordenes: 0
-            }));
+            // --- TREND DATA ---
+            if (selectedMonth === 'all') {
+                // Group by month if 'All months' is selected
+                const monthlyStats: Record<string, number> = {};
+                periodOrders.forEach(o => {
+                    const m = new Date(o.created_at).getMonth();
+                    monthlyStats[months[m]] = (monthlyStats[months[m]] || 0) + 1;
+                });
+                setTrendData(months.map(m => ({ name: m.substring(0, 3), orders: monthlyStats[m] || 0 })));
+            } else {
+                const daysInMonth = endDate.getDate();
+                const dailyStats = Array.from({ length: daysInMonth }, (_, i) => ({
+                    day: i + 1,
+                    ordenes: 0
+                }));
 
-            periodOrders.forEach(o => {
-                const day = new Date(o.created_at).getDate();
-                dailyStats[day - 1].ordenes++;
-            });
+                periodOrders.forEach(o => {
+                    const day = new Date(o.created_at).getDate();
+                    dailyStats[day - 1].ordenes++;
+                });
 
-            setTrendData(dailyStats.map(d => ({ name: `${d.day}`, orders: d.ordenes })));
+                setTrendData(dailyStats.map(d => ({ name: `${d.day}`, orders: d.ordenes })));
+            }
 
         } catch (error) {
             console.error(error);
@@ -188,22 +212,41 @@ export const Dashboard = () => {
                     <p className="text-slate-500 mt-1">Análisis de rendimiento corporativo en tiempo real.</p>
                 </div>
 
-                <div className="flex items-center gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-                    <Calendar className="text-slate-400 ml-2" size={18} />
-                    <select 
-                        value={selectedMonth} 
-                        onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                        className="bg-transparent outline-none text-slate-700 font-bold px-2 py-1 cursor-pointer"
-                    >
-                        {months.map((m, i) => <option key={m} value={i}>{m}</option>)}
-                    </select>
-                    <select 
-                        value={selectedYear} 
-                        onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                        className="bg-transparent outline-none text-slate-700 font-bold px-2 py-1 cursor-pointer"
-                    >
-                        {years.map(y => <option key={y} value={y}>{y}</option>)}
-                    </select>
+                <div className="flex flex-wrap items-center gap-3 bg-white border border-slate-200 rounded-2xl p-2 shadow-sm">
+                    <div className="flex items-center gap-2 px-3 py-1 border-r border-slate-100">
+                        <Store size={16} className="text-slate-400" />
+                        <select 
+                            value={selectedStore} 
+                            onChange={(e) => setSelectedStore(e.target.value)}
+                            className="bg-transparent outline-none text-slate-700 font-bold text-sm cursor-pointer"
+                        >
+                            <option value="all">Todas las tiendas</option>
+                            {storesList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    </div>
+
+                    <div className="flex items-center gap-2 px-3 py-1 border-r border-slate-100">
+                        <Calendar size={16} className="text-slate-400" />
+                        <select 
+                            value={selectedMonth} 
+                            onChange={(e) => setSelectedMonth(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
+                            className="bg-transparent outline-none text-slate-700 font-bold text-sm cursor-pointer"
+                        >
+                            <option value="all">Todos los meses</option>
+                            {months.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                        </select>
+                    </div>
+
+                    <div className="flex items-center gap-2 px-3 py-1">
+                        <select 
+                            value={selectedYear} 
+                            onChange={(e) => setSelectedYear(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
+                            className="bg-transparent outline-none text-slate-700 font-bold text-sm cursor-pointer"
+                        >
+                            <option value="all">Todos los años</option>
+                            {years.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                    </div>
                 </div>
             </div>
 

@@ -140,35 +140,35 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          email: string | null
           full_name: string | null
           id: string
-          is_active: boolean
+          is_active: boolean | null
           job_title: string | null
           role: Database["public"]["Enums"]["user_role"]
           store_id: string | null
-          email: string | null
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id: string
-          is_active?: boolean
+          is_active?: boolean | null
           job_title?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           store_id?: string | null
-          email?: string | null
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id?: string
-          is_active?: boolean
+          is_active?: boolean | null
           job_title?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           store_id?: string | null
-          email?: string | null
         }
         Relationships: [
           {
@@ -260,9 +260,9 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      dispatch_status: "pendiente" | "despachado" | "recibido"
+      dispatch_status: "pendiente" | "despachado" | "recibido" | "anulada"
       store_type: "warehouse" | "store"
-      user_role: "master" | "operador" | "consulta"
+      user_role: "admin" | "store_manager" | "master" | "operador" | "consulta"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -390,9 +390,9 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      dispatch_status: ["pendiente", "despachado", "recibido"],
+      dispatch_status: ["pendiente", "despachado", "recibido", "anulada"],
       store_type: ["warehouse", "store"],
-      user_role: ["admin", "store_manager"],
+      user_role: ["admin", "store_manager", "master", "operador", "consulta"],
     },
   },
 } as const
