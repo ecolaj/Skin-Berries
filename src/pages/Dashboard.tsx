@@ -73,7 +73,6 @@ export const Dashboard = () => {
             const yearNum = selectedYear === 'all' ? new Date().getFullYear() : selectedYear;
             const monthNum = selectedMonth === 'all' ? 0 : selectedMonth;
             
-            const startDate = new Date(yearNum, monthNum, 1);
             const endDate = new Date(yearNum, monthNum + 1, 0, 23, 59, 59);
 
             // Fetching all necessary data
