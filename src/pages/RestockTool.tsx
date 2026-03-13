@@ -30,18 +30,11 @@ export const RestockTool = () => {
     const [calculated, setCalculated] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     
-    // Auth Role
-    const { user } = useAuth();
-    const [userRole, setUserRole] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (user) {
-            supabase.from('profiles').select('role').eq('id', user.id).single()
-                .then(({ data }) => setUserRole(data?.role || null));
-        }
-    }, [user]);
-
+    // Auth & Permissions
+    const { user, profile } = useAuth();
+    const userRole = profile?.role || null;
     const isConsulta = userRole === 'consulta';
+    const assignedStoreId = profile?.store_id;
 
     // Modal de alerta
     const [alertOpen, setAlertOpen] = useState(false);
@@ -49,14 +42,32 @@ export const RestockTool = () => {
 
     const showAlert = (msg: string) => { setAlertMessage(msg); setAlertOpen(true); };
 
-    // Load stores on mount
+    // Load stores and products
     useEffect(() => {
-        supabase.from('stores').select('*').eq('type', 'store').eq('is_active', true).order('name').then(({ data }) => {
+        const fetchStores = async () => {
+            let query = supabase.from('stores').select('*').eq('type', 'store').eq('is_active', true);
+            
+            // Si el usuario tiene una tienda asignada, filtrar solo esa
+            if (assignedStoreId) {
+                query = query.eq('id', assignedStoreId);
+            }
+
+            const { data } = await query.order('name');
             if (data) {
                 setStores(data);
-                if (data.length > 0) setSelectedStoreId(data[0].id);
+                if (data.length > 0) {
+                    // Si solo hay una tienda (por permiso o por solo existir una), seleccionarla automáticamente
+                    if (assignedStoreId) {
+                        setSelectedStoreId(assignedStoreId);
+                    } else {
+                        setSelectedStoreId(data[0].id);
+                    }
+                }
             }
-        });
+        };
+
+        fetchStores();
+
         supabase.from('products').select('*').eq('is_active', true).order('name').then(({ data }) => {
             if (data) setAllProducts(data);
         });
@@ -249,7 +260,8 @@ export const RestockTool = () => {
                             <select
                                 value={selectedStoreId}
                                 onChange={(e) => { setSelectedStoreId(e.target.value); setCalculated(false); }}
-                                className="bg-transparent outline-none text-slate-800 font-medium pr-6 appearance-none cursor-pointer"
+                                disabled={loading || !!assignedStoreId}
+                                className="bg-transparent outline-none text-slate-800 font-medium pr-6 appearance-none cursor-pointer disabled:cursor-default disabled:opacity-70"
                             >
                                 {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>

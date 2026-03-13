@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { 
     Store, 
     TrendingUp, 
@@ -39,6 +40,17 @@ export const Dashboard = () => {
     const [storesList, setStoresList] = useState<any[]>([]);
     const [isInfoOpen, setIsInfoOpen] = useState(false);
     
+    // Auth & Permissions
+    const { profile } = useAuth();
+    const assignedStoreId = profile?.store_id;
+
+    // Si tiene tienda asignada, forzar el filtro
+    useEffect(() => {
+        if (assignedStoreId) {
+            setSelectedStore(assignedStoreId);
+        }
+    }, [assignedStoreId]);
+    
     const [stats, setStats] = useState({
         totalValuation: 0,
         stockHealth: 0,
@@ -76,16 +88,26 @@ export const Dashboard = () => {
             const endDate = new Date(yearNum, monthNum + 1, 0, 23, 59, 59);
 
             // Fetching all necessary data
+            let storesQuery = supabase.from('stores').select('*').eq('is_active', true).neq('type', 'warehouse');
+            let inventoryQuery = supabase.from('store_inventory').select('*');
+            let ordersQuery = supabase.from('dispatch_orders').select('*, dispatch_order_items(*)');
+
+            if (assignedStoreId) {
+                storesQuery = storesQuery.eq('id', assignedStoreId);
+                inventoryQuery = inventoryQuery.eq('store_id', assignedStoreId);
+                ordersQuery = ordersQuery.eq('store_id', assignedStoreId);
+            }
+
             const [
                 { data: storesData },
                 { data: products },
                 { data: inventory },
                 { data: orders }
             ] = await Promise.all([
-                supabase.from('stores').select('*').eq('is_active', true).neq('type', 'warehouse'),
+                storesQuery,
                 supabase.from('products').select('*'),
-                supabase.from('store_inventory').select('*'),
-                supabase.from('dispatch_orders').select('*, dispatch_order_items(*)')
+                inventoryQuery,
+                ordersQuery
             ]);
 
             if (!storesData || !products || !inventory || !orders) return;
@@ -217,7 +239,8 @@ export const Dashboard = () => {
                         <select 
                             value={selectedStore} 
                             onChange={(e) => setSelectedStore(e.target.value)}
-                            className="bg-transparent outline-none text-slate-700 font-bold text-sm cursor-pointer"
+                            disabled={loading || !!assignedStoreId}
+                            className="bg-transparent outline-none text-slate-700 font-bold text-sm cursor-pointer disabled:cursor-default"
                         >
                             <option value="all">Todas las tiendas</option>
                             {storesList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}

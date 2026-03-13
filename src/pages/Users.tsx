@@ -60,7 +60,7 @@ export const Users = () => {
         };
     }, []);
 
-    const handleUpdateRole = async (userId: string, newRole: 'master' | 'operador' | 'consulta') => {
+    const handleUpdateRole = async (userId: string, newRole: Profile['role']) => {
         const targetProfile = profiles.find(p => p.id === userId);
         if (targetProfile?.role === 'master') {
             showAlert('No se puede cambiar el rol de un usuario Master.');
@@ -178,8 +178,10 @@ export const Users = () => {
                                                     disabled={saving === profile.id || profile.role === 'master'}
                                                     className="bg-transparent border border-white-200 rounded-lg px-2 py-1 outline-none focus:border-skin-accent disabled:opacity-75 disabled:cursor-not-allowed font-medium"
                                                 >
-                                                    <option value="consulta">Consulta (Default)</option>
+                                                    <option value="consulta">Consulta</option>
                                                     <option value="operador">Operador</option>
+                                                    <option value="store_manager">Encargado de Tienda</option>
+                                                    <option value="admin">Administrador</option>
                                                     <option value="master">Master</option>
                                                 </select>
                                             </div>

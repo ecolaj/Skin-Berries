@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import type { Database } from '../types/supabase';
 import { Store, Calendar, FileText, Loader2, Printer, X } from 'lucide-react';
 import { AlertModal } from '../components/AlertModal';
@@ -20,6 +21,10 @@ export const DispatchHistory = () => {
     const [orders, setOrders] = useState<DispatchOrder[]>([]);
     const [stores, setStores] = useState<StoreType[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Auth & Permissions
+    const { profile } = useAuth();
+    const assignedStoreId = profile?.store_id;
     
     // Filters
     const [selectedStore, setSelectedStore] = useState<string>('all');
@@ -57,20 +62,29 @@ export const DispatchHistory = () => {
     }, []);
 
     const fetchStores = async () => {
-        const { data } = await supabase.from('stores').select('*').eq('type', 'store').eq('is_active', true).order('name');
+        let query = supabase.from('stores').select('*').eq('type', 'store').eq('is_active', true);
+        if (assignedStoreId) {
+            query = query.eq('id', assignedStoreId);
+        }
+        const { data } = await query.order('name');
         if (data) setStores(data);
     };
 
     const fetchOrders = async () => {
         setLoading(true);
-        const { data, error } = await supabase
+        let query = supabase
             .from('dispatch_orders')
             .select(`
                 *,
                 stores ( id, name ),
                 profiles ( full_name )
-            `)
-            .order('created_at', { ascending: false });
+            `);
+
+        if (assignedStoreId) {
+            query = query.eq('store_id', assignedStoreId);
+        }
+
+        const { data, error } = await query.order('created_at', { ascending: false });
 
         if (error) {
             showAlert('Error al cargar historial: ' + error.message);

@@ -1,18 +1,23 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
+import type { Database } from '../types/supabase';
+
+type Profile = Database['public']['Tables']['profiles']['Row'];
 
 type AuthContextType = {
     user: User | null;
+    profile: Profile | null;
     loading: boolean;
 };
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ user: null, profile: null, loading: true });
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
+    const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -22,21 +27,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (!currentUser) {
                 if (isMounted) {
                     setUser(null);
+                    setProfile(null);
                     setLoading(false);
                 }
                 return;
             }
 
-            // Check if user is active in DB
-            const { data } = await supabase.from('profiles').select('is_active').eq('id', currentUser.id).single();
+            // Check profile in DB
+            const { data } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
             
             if (isMounted) {
                 if (data && data.is_active === false) {
-                    // Si está inactivo, forzamos cierre de sesión
                     await supabase.auth.signOut();
                     setUser(null);
+                    setProfile(null);
                 } else {
                     setUser(currentUser);
+                    setProfile(data || null);
                 }
                 setLoading(false);
             }
@@ -57,7 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, []);
 
     return (
-        <AuthContext.Provider value={{ user, loading }}>
+        <AuthContext.Provider value={{ user, profile, loading }}>
             {children}
         </AuthContext.Provider>
     );
