@@ -4,10 +4,12 @@ import type { Database } from '../types/supabase';
 import { Store, Calendar, FileText, Loader2, Printer, X } from 'lucide-react';
 import { AlertModal } from '../components/AlertModal';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { ReasonModal } from '../components/ReasonModal';
 
 type DispatchOrder = Omit<Database['public']['Tables']['dispatch_orders']['Row'], 'status'> & {
     status: 'pendiente' | 'despachado' | 'recibido' | 'anulada';
     stores: { name: string, id: string } | null;
+    profiles: { full_name: string | null } | null;
 };
 type DispatchItem = Database['public']['Tables']['dispatch_order_items']['Row'] & {
     products: { name: string, sku: string, image_url: string | null } | null;
@@ -42,6 +44,10 @@ export const DispatchHistory = () => {
         open: false,
         orderId: null
     });
+    const [reasonModal, setReasonModal] = useState<{ open: boolean, orderId: string | null }>({
+        open: false,
+        orderId: null
+    });
 
     const showAlert = (msg: string) => { setAlertMessage(msg); setAlertOpen(true); };
 
@@ -61,7 +67,8 @@ export const DispatchHistory = () => {
             .from('dispatch_orders')
             .select(`
                 *,
-                stores ( id, name )
+                stores ( id, name ),
+                profiles ( full_name )
             `)
             .order('created_at', { ascending: false });
 
@@ -93,12 +100,13 @@ export const DispatchHistory = () => {
         setLoadingPreview(false);
     };
 
-    const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+    const handleUpdateStatus = async (orderId: string, newStatus: string, reason?: string) => {
         setLoading(true);
         const updateData: any = { status: newStatus };
         
         if (newStatus === 'despachado') updateData.dispatched_at = new Date().toISOString();
         if (newStatus === 'recibido') updateData.received_at = new Date().toISOString();
+        if (newStatus === 'anulada' && reason) updateData.notes = reason;
 
         const { error } = await supabase
             .from('dispatch_orders')
@@ -283,7 +291,7 @@ export const DispatchHistory = () => {
                                                     <div className="w-1.5 h-px bg-slate-200 shrink-0"></div>
                                                     <button 
                                                         disabled={order.status === 'anulada'}
-                                                        onClick={() => setConfirmModal({ open: true, orderId: order.id })}
+                                                        onClick={() => setReasonModal({ open: true, orderId: order.id })}
                                                         className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all truncate ${
                                                             order.status === 'anulada' 
                                                             ? 'bg-slate-100 border-slate-200 text-slate-400' 
@@ -300,10 +308,9 @@ export const DispatchHistory = () => {
                                         <div className="flex items-center justify-end gap-2">
                                             <button
                                                 onClick={() => handleOpenPreview(order)}
-                                                disabled={order.status === 'anulada'}
                                                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
                                                     ${order.status === 'anulada' 
-                                                        ? 'bg-slate-50 text-slate-300 cursor-not-allowed' 
+                                                        ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' 
                                                         : 'bg-skin-blush text-skin-accent hover:bg-pink-100'}`}
                                             >
                                                 <FileText size={16} />
@@ -371,8 +378,24 @@ export const DispatchHistory = () => {
                                                 <p className="text-xl font-mono font-black text-rose-600">
                                                     #{previewOrder.id.split('-')[0].toUpperCase()}
                                                 </p>
+                                                {previewOrder.status === 'anulada' && (
+                                                    <div className="bg-red-600 text-white px-2 py-0.5 rounded text-[10px] font-bold mt-1 uppercase text-center">ANULADA</div>
+                                                )}
                                             </div>
                                         </div>
+
+                                        {/* ANULATION REASON (Only if cancelled) */}
+                                        {previewOrder.status === 'anulada' && previewOrder.notes && (
+                                            <div className="mb-6 bg-red-50 border-2 border-red-200 p-4 rounded-xl flex items-start gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                                                    <X size={16} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-black text-red-700 uppercase tracking-widest">Motivo de Anulación</p>
+                                                    <p className="text-sm text-red-800 font-medium italic">"{previewOrder.notes}"</p>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {/* DOCUMENT META DATA */}
                                         <div className="grid grid-cols-2 gap-8 mb-8 pb-8 border-b border-slate-200">
@@ -438,7 +461,9 @@ export const DispatchHistory = () => {
                                             <div>
                                                 <div className="border-b border-slate-800 mb-2 pb-8"></div>
                                                 <p className="text-xs font-bold text-slate-800 uppercase">Generado Por</p>
-                                                <p className="text-[10px] text-slate-500 mt-1">Bodega / Operador</p>
+                                                <p className="text-[10px] text-slate-800 mt-1 font-bold italic">
+                                                    {previewOrder.profiles?.full_name || 'Bodega / Operador'}
+                                                </p>
                                             </div>
                                             <div>
                                                 <div className="border-b border-slate-800 mb-2 pb-8"></div>
@@ -469,15 +494,26 @@ export const DispatchHistory = () => {
                 <AlertModal isOpen={alertOpen} message={alertMessage} onClose={() => setAlertOpen(false)} />
                 <ConfirmModal 
                     isOpen={confirmModal.open}
-                    title="¿Anular orden de despacho?"
-                    message="Esta acción no se puede deshacer. La orden quedará invalidada permanentemente."
-                    confirmLabel="Sí, Anular Orden"
-                    variant="danger"
+                    title="¿Proceder con la acción?"
+                    message="Confirma si deseas continuar con este cambio de estado."
+                    confirmLabel="Confirmar"
                     onConfirm={() => {
-                        if (confirmModal.orderId) handleUpdateStatus(confirmModal.orderId, 'anulada');
+                        // generic keep if needed, but we used reasonModal for cancellation
                         setConfirmModal({ open: false, orderId: null });
                     }}
                     onCancel={() => setConfirmModal({ open: false, orderId: null })}
+                />
+                <ReasonModal
+                    isOpen={reasonModal.open}
+                    title="Anular Orden de Despacho"
+                    message="Para anular esta orden, es obligatorio ingresar el motivo."
+                    placeholder="Ej: Error en cantidades, tienda equivocada, etc..."
+                    confirmLabel="Anular Permanentemente"
+                    onConfirm={(reason) => {
+                        if (reasonModal.orderId) handleUpdateStatus(reasonModal.orderId, 'anulada', reason);
+                        setReasonModal({ open: false, orderId: null });
+                    }}
+                    onCancel={() => setReasonModal({ open: false, orderId: null })}
                 />
             </div>
         </div>

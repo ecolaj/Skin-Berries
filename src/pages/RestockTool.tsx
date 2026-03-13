@@ -190,7 +190,11 @@ export const RestockTool = () => {
 
         const { data: orderData, error: orderError } = await supabase
             .from('dispatch_orders')
-            .insert([{ store_id: selectedStoreId, status: 'pendiente' }])
+            .insert([{ 
+                store_id: selectedStoreId, 
+                status: 'pendiente',
+                created_by: user?.id 
+            }])
             .select()
             .single();
 
