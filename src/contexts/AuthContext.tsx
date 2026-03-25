@@ -22,6 +22,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     useEffect(() => {
         let isMounted = true;
+        let profileSubscription: any = null;
 
         const checkUserStatus = async (currentUser: User | null) => {
             if (!currentUser) {
@@ -29,6 +30,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setUser(null);
                     setProfile(null);
                     setLoading(false);
+                    if (profileSubscription) {
+                        profileSubscription.unsubscribe();
+                        profileSubscription = null;
+                    }
                 }
                 return;
             }
@@ -44,6 +49,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 } else {
                     setUser(currentUser);
                     setProfile(data || null);
+
+                    // Setup realtime subscription for this profile if not already set
+                    if (!profileSubscription) {
+                        profileSubscription = supabase
+                            .channel(`profile_${currentUser.id}`)
+                            .on('postgres_changes', 
+                                { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${currentUser.id}` }, 
+                                (payload) => {
+                                    if (isMounted) setProfile(payload.new as Profile);
+                                }
+                            )
+                            .subscribe();
+                    }
                 }
                 setLoading(false);
             }
@@ -60,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => {
             isMounted = false;
             subscription.unsubscribe();
+            if (profileSubscription) profileSubscription.unsubscribe();
         };
     }, []);
 

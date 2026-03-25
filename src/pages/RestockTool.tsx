@@ -417,7 +417,7 @@ export const RestockTool = () => {
                                                 min={0}
                                                 value={row.base_stock}
                                                 onChange={(e) => updateRow(row.product.id, 'base_stock', parseInt(e.target.value) || 0)}
-                                                disabled={isConsulta || userRole !== 'master'}
+                                                disabled={isConsulta || (userRole !== 'master' && userRole !== 'admin')}
                                                 className="w-20 text-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 focus:border-skin-accent focus:outline-none focus:ring-1 focus:ring-skin-accent text-sm font-medium disabled:opacity-60"
                                             />
                                         </td>

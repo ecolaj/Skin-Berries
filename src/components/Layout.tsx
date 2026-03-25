@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -7,44 +7,12 @@ import { ConfirmModal } from './ConfirmModal';
 import { Store, Settings, LogOut, PackageSearch, LayoutDashboard, Users, Box, ChevronDown, Target, ClipboardList } from 'lucide-react';
 
 export const Layout = () => {
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const navigate = useNavigate();
     
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
-    const [profile, setProfile] = useState<any>(null);
-
-    useEffect(() => {
-        if (user) {
-            fetchProfile();
-
-            // Realtime subscription for current user profile
-            const channel = supabase
-                .channel(`current_user_profile_${user.id}`)
-                .on('postgres_changes', 
-                    { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` }, 
-                    (payload) => {
-                        setProfile(payload.new);
-                    }
-                )
-                .subscribe();
-
-            return () => {
-                supabase.removeChannel(channel);
-            };
-        }
-    }, [user]);
-
-    const fetchProfile = async () => {
-        if (!user) return;
-        const { data } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-        if (data) setProfile(data);
-    };
 
     const handleLogout = async () => {
         setIsLogoutConfirmOpen(false);
@@ -65,7 +33,7 @@ export const Layout = () => {
         { to: "/goals", icon: <Target size={18} />, label: "Metas Corporativas" },
     ];
 
-    const isMaster = profile?.role === 'master';
+    const canSeeConfig = profile?.role === 'master' || profile?.role === 'admin';
 
     return (
         <div className="flex h-screen bg-skin-bg print:h-auto print:bg-white">
@@ -93,8 +61,8 @@ export const Layout = () => {
                         </NavLink>
                     ))}
 
-                    {/* Configuration Submenu (Only for Master) */}
-                    {isMaster && (
+                    {/* Configuration Submenu (For Master and Admin) */}
+                    {canSeeConfig && (
                         <div className="pt-2">
                             <button
                                 onClick={() => setIsConfigOpen(!isConfigOpen)}
@@ -177,7 +145,7 @@ export const Layout = () => {
                 isOpen={isProfileModalOpen}
                 onClose={() => setIsProfileModalOpen(false)}
                 user={user}
-                onProfileUpdated={fetchProfile}
+                onProfileUpdated={() => {}}
             />
 
             {/* Logout Confirmation Modal */}

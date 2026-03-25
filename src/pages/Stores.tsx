@@ -21,16 +21,8 @@ export const Stores = () => {
     const [showInactive, setShowInactive] = useState(false);
     
     // Auth Role
-    const { user } = useAuth();
-    const [userRole, setUserRole] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (user) {
-            supabase.from('profiles').select('role').eq('id', user.id).single()
-                .then(({ data }) => setUserRole(data?.role || null));
-        }
-    }, [user]);
-
+    const { profile } = useAuth();
+    const userRole = profile?.role || null;
     const isConsulta = userRole === 'consulta';
 
     // Modales de confirmación y alerta
