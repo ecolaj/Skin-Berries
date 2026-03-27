@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { getAllowedStores } from '../utils/storeAccess';
 import { 
     Store, 
     TrendingUp, 
@@ -37,19 +38,13 @@ export const Dashboard = () => {
     const [selectedMonth, setSelectedMonth] = useState<number | 'all'>(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState<number | 'all'>(new Date().getFullYear());
     const [selectedStore, setSelectedStore] = useState<string>('all');
-    const [storesList, setStoresList] = useState<any[]>([]);
+    const [storesList, setStoresList] = useState<{ id: string; name: string; type: string }[]>([]);
     const [isInfoOpen, setIsInfoOpen] = useState(false);
     
     // Auth & Permissions
     const { profile } = useAuth();
-    const assignedStoreIds = profile?.assigned_stores || [];
-
-    // Si tiene una sola tienda asignada, forzar el filtro
-    useEffect(() => {
-        if (assignedStoreIds.length === 1) {
-            setSelectedStore(assignedStoreIds[0]);
-        }
-    }, [assignedStoreIds.length]);
+    
+    // Si la lista final filtrada tiene 1 sola, la seleccionaremos automáticamente (esto pasará después del fetch)
     
     const [stats, setStats] = useState({
         totalValuation: 0,
@@ -58,10 +53,10 @@ export const Dashboard = () => {
         monthlyOrders: 0
     });
     
-    const [brandData, setBrandData] = useState<any[] | null>(null);
-    const [topProducts, setTopProducts] = useState<any[] | null>(null);
-    const [storeLoad, setStoreLoad] = useState<any[] | null>(null);
-    const [trendData, setTrendData] = useState<any[] | null>(null);
+    const [brandData, setBrandData] = useState<{ name: string; value: number }[] | null>(null);
+    const [topProducts, setTopProducts] = useState<{ name: string; cantidad: number }[] | null>(null);
+    const [storeLoad, setStoreLoad] = useState<{ name: string; orders: number }[] | null>(null);
+    const [trendData, setTrendData] = useState<{ name: string; orders: number }[] | null>(null);
 
     const formatCurrency = (val: number) => {
         return 'Q' + val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -87,35 +82,42 @@ export const Dashboard = () => {
             
             const endDate = new Date(yearNum, monthNum + 1, 0, 23, 59, 59);
 
-            // Fetching all necessary data
-            let storesQuery = supabase.from('stores').select('*').eq('is_active', true).neq('type', 'warehouse');
-            let inventoryQuery = supabase.from('store_inventory').select('*');
-            let ordersQuery = supabase.from('dispatch_orders').select('*, dispatch_order_items(*)');
+            // Fetch ALL stores first to safely evaluate special tags
+            const { data: allStores } = await supabase.from('stores').select('*').eq('is_active', true).neq('type', 'warehouse');
+            if (!allStores) return;
 
-            if (assignedStoreIds.length > 0) {
-                storesQuery = storesQuery.in('id', assignedStoreIds);
-                inventoryQuery = inventoryQuery.in('store_id', assignedStoreIds);
-                ordersQuery = ordersQuery.in('store_id', assignedStoreIds);
+            // Apply our unified multi-store and special tag logic
+            const allowedStores = getAllowedStores(allStores, profile);
+            setStoresList(allowedStores);
+
+            // Determine which IDs to query based on what is selected
+            const activeStoreIds = selectedStore === 'all' 
+                ? allowedStores.map(s => s.id) 
+                : [selectedStore];
+
+            if (activeStoreIds.length === 1 && selectedStore === 'all') {
+                setSelectedStore(activeStoreIds[0]);
             }
 
+            if (activeStoreIds.length === 0) {
+                setStats({ totalValuation: 0, stockHealth: 0, activeStores: 0, monthlyOrders: 0 });
+                setLoading(false);
+                return;
+            }
+
+            // Now safely fetch inventory and orders ONLY for those specific mapped locations
             const [
-                { data: storesData },
                 { data: products },
                 { data: inventory },
                 { data: orders }
             ] = await Promise.all([
-                storesQuery,
                 supabase.from('products').select('*'),
-                inventoryQuery,
-                ordersQuery
+                supabase.from('store_inventory').select('*').in('store_id', activeStoreIds),
+                supabase.from('dispatch_orders').select('*, dispatch_order_items(*)').in('store_id', activeStoreIds)
             ]);
 
-            if (!storesData || !products || !inventory || !orders) return;
-            setStoresList(storesData);
-
-            const activeStoreIds = selectedStore === 'all' 
-                ? storesData.map(s => s.id) 
-                : [selectedStore];
+            if (!products || !inventory || !orders) return;
+            const storesData = allowedStores;
 
             // --- CALCULATE STATS ---
             // 1. Valuation (Only for active stores)
@@ -178,7 +180,7 @@ export const Dashboard = () => {
             // --- CHART DATA: TOP PRODUCTS ---
             const itemMap: Record<string, { name: string, qty: number }> = {};
             periodOrders.forEach(o => {
-                o.dispatch_order_items?.forEach((item: any) => {
+                o.dispatch_order_items?.forEach((item: { product_id: string; dispatch_qty: number }) => {
                     const product = products.find(p => p.id === item.product_id);
                     if (product) {
                         if (!itemMap[product.id]) itemMap[product.id] = { name: product.name, qty: 0 };
@@ -239,11 +241,11 @@ export const Dashboard = () => {
                         <select 
                             value={selectedStore} 
                             onChange={(e) => setSelectedStore(e.target.value)}
-                            disabled={loading || assignedStoreIds.length === 1}
+                            disabled={loading || storesList.length <= 1}
                             className="bg-transparent outline-none text-slate-700 font-bold text-sm cursor-pointer disabled:cursor-default"
                         >
-                            {assignedStoreIds.length === 0 && <option value="all">Todas las tiendas</option>}
-                            {assignedStoreIds.length > 1 && <option value="all">Mis tiendas asignadas</option>}
+                            {storesList.length === 0 && <option value="all">Sin ubicaciones</option>}
+                            {storesList.length > 1 && <option value="all">Mis ubicaciones asignadas</option>}
                             {storesList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                     </div>
@@ -401,7 +403,7 @@ export const Dashboard = () => {
                                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                                 ))}
                                             </Pie>
-                                            <Tooltip formatter={(value: any) => formatCurrency(Number(value || 0))} />
+                                            <Tooltip formatter={(value) => formatCurrency(Number(value || 0))} />
                                             <Legend verticalAlign="bottom" height={36}/>
                                         </PieChart>
                                     </ResponsiveContainer>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { getAllowedStores } from '../utils/storeAccess';
 import type { Database } from '../types/supabase';
 import { Store, Calendar, FileText, Loader2, Printer, X } from 'lucide-react';
 import { AlertModal } from '../components/AlertModal';
@@ -24,7 +25,6 @@ export const DispatchHistory = () => {
 
     // Auth & Permissions
     const { profile } = useAuth();
-    const assignedStoreIds = profile?.assigned_stores || [];
     
     // Filters
     const [selectedStore, setSelectedStore] = useState<string>('all');
@@ -56,44 +56,48 @@ export const DispatchHistory = () => {
 
     const showAlert = (msg: string) => { setAlertMessage(msg); setAlertOpen(true); };
 
-    useEffect(() => {
-        fetchStores();
-        fetchOrders();
-    }, []);
-
-    const fetchStores = async () => {
-        let query = supabase.from('stores').select('*').in('type', ['store', 'event']).eq('is_active', true);
-        if (assignedStoreIds.length > 0) {
-            query = query.in('id', assignedStoreIds);
-        }
-        const { data } = await query.order('name');
-        if (data) setStores(data);
-    };
-
-    const fetchOrders = async () => {
+    const fetchData = async () => {
         setLoading(true);
-        let query = supabase
+        const { data: allStores } = await supabase.from('stores').select('*').in('type', ['store', 'event']).eq('is_active', true).order('name');
+        
+        if (!allStores) {
+            setLoading(false);
+            return;
+        }
+
+        const allowedStores = getAllowedStores(allStores, profile);
+        setStores(allowedStores);
+
+        const allowedStoreIds = allowedStores.map(s => s.id);
+
+        if (allowedStoreIds.length === 0) {
+            setOrders([]);
+            setLoading(false);
+            return;
+        }
+
+        const { data: ordersData, error } = await supabase
             .from('dispatch_orders')
             .select(`
                 *,
                 stores ( id, name ),
                 profiles ( full_name )
-            `);
-
-        if (assignedStoreIds.length > 0) {
-            query = query.in('store_id', assignedStoreIds);
-        }
-
-        const { data, error } = await query.order('created_at', { ascending: false });
+            `)
+            .in('store_id', allowedStoreIds)
+            .order('created_at', { ascending: false });
 
         if (error) {
             showAlert('Error al cargar historial: ' + error.message);
-        } else if (data) {
-            // Fix nested type casting
-            setOrders(data as unknown as DispatchOrder[]);
+        } else if (ordersData) {
+            setOrders(ordersData as unknown as DispatchOrder[]);
         }
+        
         setLoading(false);
     };
+
+    useEffect(() => {
+        if (profile) fetchData();
+    }, [profile]);
 
     const handleOpenPreview = async (order: DispatchOrder) => {
         setPreviewOrder(order);
@@ -116,7 +120,7 @@ export const DispatchHistory = () => {
 
     const handleUpdateStatus = async (orderId: string, newStatus: string, reason?: string) => {
         setLoading(true);
-        const updateData: any = { status: newStatus };
+        const updateData: Record<string, string> = { status: newStatus };
         
         if (newStatus === 'despachado') updateData.dispatched_at = new Date().toISOString();
         if (newStatus === 'recibido') updateData.received_at = new Date().toISOString();
@@ -170,8 +174,8 @@ export const DispatchHistory = () => {
                                 onChange={(e) => setSelectedStore(e.target.value)}
                                 className="bg-transparent outline-none text-slate-800 font-bold text-sm cursor-pointer"
                             >
-                                {assignedStoreIds.length === 0 && <option value="all">Todas las ubicaciones</option>}
-                                {assignedStoreIds.length > 1 && <option value="all">Mis ubicaciones asignadas</option>}
+                                {stores.length === 0 && <option value="all">Sin ubicaciones</option>}
+                                {stores.length > 1 && <option value="all">Mis ubicaciones asignadas</option>}
                                 {stores.filter(s => s.type === 'store').length > 0 && (
                                     <optgroup label="Tiendas">
                                         {stores.filter(s => s.type === 'store').map(s => (

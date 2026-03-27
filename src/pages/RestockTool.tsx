@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { getAllowedStores } from '../utils/storeAccess';
 import type { Database } from '../types/supabase';
 import {
     Calculator, PackageCheck, Store, AlertTriangle,
@@ -34,7 +35,6 @@ export const RestockTool = () => {
     const { user, profile } = useAuth();
     const userRole = profile?.role || null;
     const isConsulta = userRole === 'consulta';
-    const assignedStoreIds = profile?.assigned_stores || [];
 
     // Modal de alerta
     const [alertOpen, setAlertOpen] = useState(false);
@@ -47,19 +47,14 @@ export const RestockTool = () => {
     // Load stores and products
     useEffect(() => {
         const fetchStores = async () => {
-            let query = supabase.from('stores').select('*').in('type', ['store', 'event']).eq('is_active', true);
+            const { data } = await supabase.from('stores').select('*').in('type', ['store', 'event']).eq('is_active', true).order('name');
             
-            // Si el usuario tiene tiendas asignadas, filtrar solo esas
-            if (assignedStoreIds.length > 0) {
-                query = query.in('id', assignedStoreIds);
-            }
-
-            const { data } = await query.order('name');
             if (data) {
-                setStores(data);
-                if (data.length > 0) {
+                const allowed = getAllowedStores(data, profile);
+                setStores(allowed);
+                if (allowed.length > 0) {
                     // Seleccionar la primera tienda disponible por defecto
-                    setSelectedStoreId(data[0].id);
+                    setSelectedStoreId(allowed[0].id);
                 }
             }
         };
@@ -260,7 +255,7 @@ export const RestockTool = () => {
                             <select
                                 value={selectedStoreId}
                                 onChange={(e) => { setSelectedStoreId(e.target.value); setCalculated(false); }}
-                                disabled={loading || assignedStoreIds.length === 1}
+                                disabled={loading || stores.length <= 1}
                                 className="bg-transparent outline-none text-slate-800 font-medium pr-6 appearance-none cursor-pointer disabled:cursor-default disabled:opacity-70"
                             >
                                 {stores.filter(s => s.type === 'store').length > 0 && (

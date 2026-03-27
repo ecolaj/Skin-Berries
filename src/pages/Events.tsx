@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { getAllowedStores } from '../utils/storeAccess';
 import type { Database } from '../types/supabase';
 import { Plus, Ticket, Loader2, X, MapPin, Phone, Clock, PowerOff, Power } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -24,7 +25,6 @@ export const Events = () => {
     const { profile } = useAuth();
     const userRole = profile?.role || null;
     const canManageEvents = ['master', 'admin', 'operador'].includes(userRole || '');
-    const assignedStoreIds = profile?.assigned_stores || [];
 
     // Modales de confirmación y alerta
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -35,12 +35,10 @@ export const Events = () => {
 
     const fetchEvents = async () => {
         setLoading(true);
-        let query = supabase.from('stores').select('*').eq('type', 'event').order('name');
-        if (assignedStoreIds.length > 0) {
-            query = query.in('id', assignedStoreIds);
+        const { data } = await supabase.from('stores').select('*').eq('type', 'event').order('name');
+        if (data) {
+            setEvents(getAllowedStores(data, profile));
         }
-        const { data } = await query;
-        if (data) setEvents(data);
         setLoading(false);
     };
 
@@ -81,7 +79,7 @@ export const Events = () => {
 
         const { error } = editingEvent
             ? await supabase.from('stores').update(payload).eq('id', editingEvent.id)
-            : await supabase.from('stores').insert([{ ...payload, type: 'event' as any }]);
+            : await supabase.from('stores').insert([{ ...payload, type: 'event' as const }]);
 
         setSaving(false);
         if (!error) {

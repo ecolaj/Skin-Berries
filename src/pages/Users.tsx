@@ -21,45 +21,102 @@ const StoreMultiSelect = ({
     disabled: boolean
 }) => {
     const [open, setOpen] = useState(false);
+    
+    const hasAllStores = assignedStores.includes('ALL_STORES');
+    const hasAllEvents = assignedStores.includes('ALL_EVENTS');
+    const specificCount = assignedStores.filter(id => id !== 'ALL_STORES' && id !== 'ALL_EVENTS').length;
+    
+    let btnText = '-- Sin Asignar --';
+    if (assignedStores.length === 0) btnText = '-- Sin Restricción --'; // Master/Admin
+    else if (hasAllStores && hasAllEvents) btnText = 'Todo (Tiendas y Eventos)';
+    else if (hasAllStores && specificCount > 0) btnText = `Todas las T. + ${specificCount} Ev.`;
+    else if (hasAllStores) btnText = 'Todas las Tiendas';
+    else if (hasAllEvents && specificCount > 0) btnText = `Todos los Ev. + ${specificCount} T.`;
+    else if (hasAllEvents) btnText = 'Todos los Eventos';
+    else if (specificCount > 0) btnText = `${specificCount} asignadas`;
+
     return (
         <div className="relative">
             <button 
                 disabled={disabled} 
                 onClick={() => setOpen(!open)}
-                className="bg-transparent border border-slate-200 rounded-lg px-2 py-1 text-sm text-left truncate w-40 disabled:opacity-50 flex justify-between items-center"
+                className="bg-transparent border border-slate-200 rounded-lg px-2 py-1 text-sm text-left truncate w-48 disabled:opacity-50 flex justify-between items-center"
+                title={btnText}
             >
-                <span className="truncate">{assignedStores.length === 0 ? '-- Sin Restricción --' : `${assignedStores.length} suc.`}</span>
+                <span className="truncate">{btnText}</span>
             </button>
             {open && (
-                <div className="absolute top-full mt-1 left-0 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 p-2 max-h-60 overflow-y-auto">
-                    <label className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 cursor-pointer rounded border-b border-slate-100 mb-1 pb-2">
-                        <input 
-                            type="checkbox" 
-                            checked={assignedStores.length === 0}
-                            onChange={() => {
+                <div className="absolute top-full mt-1 left-0 w-72 bg-white border border-slate-200 rounded-lg shadow-xl z-50 p-2 max-h-72 overflow-y-auto">
+                    {/* Botones de macro selección */}
+                    <div className="space-y-1 mb-2 pb-2 border-b border-slate-100">
+                        <label className="flex items-center gap-2 px-2 py-1 bg-skin-blush/20 hover:bg-skin-blush/50 cursor-pointer rounded border border-skin-accent/20">
+                            <input 
+                                type="checkbox" 
+                                checked={hasAllStores}
+                                onChange={(e) => {
+                                    if (e.target.checked) onChange([...assignedStores, 'ALL_STORES']);
+                                    else onChange(assignedStores.filter(id => id !== 'ALL_STORES'));
+                                }}
+                                className="accent-skin-accent"
+                            /> 
+                            <span className="text-sm font-bold text-slate-800">Todas las Tiendas (Dinámico)</span>
+                        </label>
+                        <label className="flex items-center gap-2 px-2 py-1 bg-orange-50 hover:bg-orange-100 cursor-pointer rounded border border-orange-200">
+                            <input 
+                                type="checkbox" 
+                                checked={hasAllEvents}
+                                onChange={(e) => {
+                                    if (e.target.checked) onChange([...assignedStores, 'ALL_EVENTS']);
+                                    else onChange(assignedStores.filter(id => id !== 'ALL_EVENTS'));
+                                }}
+                                className="accent-orange-500"
+                            /> 
+                            <span className="text-sm font-bold text-slate-800">Todos los Eventos (Dinámico)</span>
+                        </label>
+                    </div>
+
+                    <div className="px-2 pb-1 text-xs font-semibold text-slate-400 uppercase tracking-wider">Selección Manual</div>
+                    {stores.map(s => {
+                        // Si ya tiene "Todas las tiendas", deseleccionamos visualmente la opción de clicar en una tienda específica y viceversa
+                        const isStoreCovered = s.type === 'store' && hasAllStores;
+                        const isEventCovered = s.type === 'event' && hasAllEvents;
+                        const isCovered = isStoreCovered || isEventCovered;
+
+                        return (
+                            <label key={s.id} className={`flex items-center gap-2 px-2 py-1 cursor-pointer rounded ${isCovered ? 'opacity-50' : 'hover:bg-slate-50'}`}>
+                                <input 
+                                    type="checkbox" 
+                                    checked={isCovered || assignedStores.includes(s.id)}
+                                    disabled={isCovered}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            onChange([...assignedStores, s.id]);
+                                        } else {
+                                            onChange(assignedStores.filter(id => id !== s.id));
+                                        }
+                                    }}
+                                />
+                                <span className={`text-sm truncate ${isCovered ? 'text-slate-400 italic' : 'text-slate-700'}`}>
+                                    {s.type === 'event' ? '(Evento) ' : '(Tienda) '}{s.name}
+                                </span>
+                            </label>
+                        );
+                    })}
+                    
+                    {/* Opción para limpiar TODO y dejar vacío */}
+                    {assignedStores.length > 0 && (
+                        <button 
+                            className="w-full mt-2 text-xs text-red-500 hover:text-red-700 py-1"
+                            onClick={() => {
                                 onChange([]);
                                 setOpen(false);
                             }}
-                        /> 
-                        <span className="text-sm font-bold text-slate-700">Sin Restricción (Ver Todo)</span>
-                    </label>
-                    {stores.map(s => (
-                        <label key={s.id} className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 cursor-pointer rounded">
-                            <input 
-                                type="checkbox" 
-                                checked={assignedStores.includes(s.id)}
-                                onChange={(e) => {
-                                    if (e.target.checked) {
-                                        onChange([...assignedStores, s.id]);
-                                    } else {
-                                        onChange(assignedStores.filter(id => id !== s.id));
-                                    }
-                                }}
-                            />
-                            <span className="text-sm text-slate-700 truncate">{s.type === 'event' ? '(Ev) ' : ''}{s.name}</span>
-                        </label>
-                    ))}
-                    <button className="w-full mt-2 bg-skin-accent text-white py-1 rounded-md text-sm font-bold shadow-sm shadow-skin-accent/30" onClick={() => setOpen(false)}>Confirmar</button>
+                        >
+                            Quitar todas las asignaciones
+                        </button>
+                    )}
+
+                    <button className="w-full mt-2 bg-skin-accent text-white py-1.5 rounded-md text-sm font-bold shadow-sm shadow-skin-accent/30" onClick={() => setOpen(false)}>Hecho</button>
                 </div>
             )}
             {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />}
@@ -137,7 +194,7 @@ export const Users = () => {
 
     const handleUpdateStores = async (userId: string, newStores: string[]) => {
         setSaving(userId);
-        const storesValue = newStores.length === 0 ? null : newStores;
+        const storesValue = newStores.length === 0 ? [] : newStores;
         const { error } = await supabase.from('profiles').update({ assigned_stores: storesValue }).eq('id', userId);
         setSaving(null);
         if (!error) {
@@ -232,7 +289,7 @@ export const Users = () => {
                                                 {profile.role === 'master' ? <ShieldAlert size={16} className="text-skin-accent" /> : profile.role === 'operador' ? <UserCog size={16} className="text-indigo-400" /> : <Box size={16} className="text-slate-300" />}
                                                 <select
                                                     value={profile.role}
-                                                    onChange={(e) => handleUpdateRole(profile.id, e.target.value as any)}
+                                                    onChange={(e) => handleUpdateRole(profile.id, e.target.value as NonNullable<Profile['role']>)}
                                                     disabled={saving === profile.id || profile.role === 'master'}
                                                     className="bg-transparent border border-white-200 rounded-lg px-2 py-1 outline-none focus:border-skin-accent disabled:opacity-75 disabled:cursor-not-allowed font-medium"
                                                 >
@@ -312,7 +369,7 @@ export const Users = () => {
                         setProfileModalOpen(false);
                         setSelectedUserProfile(null);
                     }}
-                    user={{ id: selectedUserProfile.id } as any}
+                    user={{ id: selectedUserProfile.id } as unknown as import('@supabase/supabase-js').User}
                     userEmail={selectedUserProfile.email || 'No disponible'}
                     onProfileUpdated={() => {}}
                     viewOnly={true}
