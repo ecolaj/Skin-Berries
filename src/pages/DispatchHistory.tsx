@@ -24,7 +24,7 @@ export const DispatchHistory = () => {
 
     // Auth & Permissions
     const { profile } = useAuth();
-    const assignedStoreId = profile?.store_id;
+    const assignedStoreIds = profile?.assigned_stores || [];
     
     // Filters
     const [selectedStore, setSelectedStore] = useState<string>('all');
@@ -62,9 +62,9 @@ export const DispatchHistory = () => {
     }, []);
 
     const fetchStores = async () => {
-        let query = supabase.from('stores').select('*').eq('type', 'store').eq('is_active', true);
-        if (assignedStoreId) {
-            query = query.eq('id', assignedStoreId);
+        let query = supabase.from('stores').select('*').in('type', ['store', 'event']).eq('is_active', true);
+        if (assignedStoreIds.length > 0) {
+            query = query.in('id', assignedStoreIds);
         }
         const { data } = await query.order('name');
         if (data) setStores(data);
@@ -80,8 +80,8 @@ export const DispatchHistory = () => {
                 profiles ( full_name )
             `);
 
-        if (assignedStoreId) {
-            query = query.eq('store_id', assignedStoreId);
+        if (assignedStoreIds.length > 0) {
+            query = query.in('store_id', assignedStoreIds);
         }
 
         const { data, error } = await query.order('created_at', { ascending: false });
@@ -170,8 +170,22 @@ export const DispatchHistory = () => {
                                 onChange={(e) => setSelectedStore(e.target.value)}
                                 className="bg-transparent outline-none text-slate-800 font-bold text-sm cursor-pointer"
                             >
-                                <option value="all">Todas las tiendas</option>
-                                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                {assignedStoreIds.length === 0 && <option value="all">Todas las ubicaciones</option>}
+                                {assignedStoreIds.length > 1 && <option value="all">Mis ubicaciones asignadas</option>}
+                                {stores.filter(s => s.type === 'store').length > 0 && (
+                                    <optgroup label="Tiendas">
+                                        {stores.filter(s => s.type === 'store').map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </optgroup>
+                                )}
+                                {stores.filter(s => s.type === 'event').length > 0 && (
+                                    <optgroup label="Eventos">
+                                        {stores.filter(s => s.type === 'event').map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </optgroup>
+                                )}
                             </select>
                         </div>
                         

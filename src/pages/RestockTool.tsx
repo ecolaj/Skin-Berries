@@ -34,7 +34,7 @@ export const RestockTool = () => {
     const { user, profile } = useAuth();
     const userRole = profile?.role || null;
     const isConsulta = userRole === 'consulta';
-    const assignedStoreId = profile?.store_id;
+    const assignedStoreIds = profile?.assigned_stores || [];
 
     // Modal de alerta
     const [alertOpen, setAlertOpen] = useState(false);
@@ -42,26 +42,24 @@ export const RestockTool = () => {
 
     const showAlert = (msg: string) => { setAlertMessage(msg); setAlertOpen(true); };
 
+    const isEventSelected = stores.find(s => s.id === selectedStoreId)?.type === 'event';
+
     // Load stores and products
     useEffect(() => {
         const fetchStores = async () => {
-            let query = supabase.from('stores').select('*').eq('type', 'store').eq('is_active', true);
+            let query = supabase.from('stores').select('*').in('type', ['store', 'event']).eq('is_active', true);
             
-            // Si el usuario tiene una tienda asignada, filtrar solo esa
-            if (assignedStoreId) {
-                query = query.eq('id', assignedStoreId);
+            // Si el usuario tiene tiendas asignadas, filtrar solo esas
+            if (assignedStoreIds.length > 0) {
+                query = query.in('id', assignedStoreIds);
             }
 
             const { data } = await query.order('name');
             if (data) {
                 setStores(data);
                 if (data.length > 0) {
-                    // Si solo hay una tienda (por permiso o por solo existir una), seleccionarla automáticamente
-                    if (assignedStoreId) {
-                        setSelectedStoreId(assignedStoreId);
-                    } else {
-                        setSelectedStoreId(data[0].id);
-                    }
+                    // Seleccionar la primera tienda disponible por defecto
+                    setSelectedStoreId(data[0].id);
                 }
             }
         };
@@ -104,18 +102,20 @@ export const RestockTool = () => {
 
     useEffect(() => { loadInventory(); }, [loadInventory]);
 
-    const updateRow = (productId: string, field: 'base_stock' | 'current_stock', value: number) => {
+    const updateRow = (productId: string, field: 'base_stock' | 'current_stock' | 'dispatch_qty', value: number) => {
         setRows(prev => prev.map(r => {
             if (r.product.id !== productId) return r;
             const updated = { ...r, [field]: value };
-            updated.dispatch_qty = Math.max(0, updated.base_stock - updated.current_stock);
+            if (field !== 'dispatch_qty') {
+                updated.dispatch_qty = Math.max(0, updated.base_stock - updated.current_stock);
+            }
             return updated;
         }));
         setCalculated(false);
     };
 
     const handleSaveInventory = async () => {
-        if (!selectedStoreId) return;
+        if (!selectedStoreId || isEventSelected) return;
         setSavingInventory(true);
 
         const upserts = rows.map(r => ({
@@ -260,10 +260,23 @@ export const RestockTool = () => {
                             <select
                                 value={selectedStoreId}
                                 onChange={(e) => { setSelectedStoreId(e.target.value); setCalculated(false); }}
-                                disabled={loading || !!assignedStoreId}
+                                disabled={loading || assignedStoreIds.length === 1}
                                 className="bg-transparent outline-none text-slate-800 font-medium pr-6 appearance-none cursor-pointer disabled:cursor-default disabled:opacity-70"
                             >
-                                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                {stores.filter(s => s.type === 'store').length > 0 && (
+                                    <optgroup label="Tiendas">
+                                        {stores.filter(s => s.type === 'store').map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </optgroup>
+                                )}
+                                {stores.filter(s => s.type === 'event').length > 0 && (
+                                    <optgroup label="Eventos">
+                                        {stores.filter(s => s.type === 'event').map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </optgroup>
+                                )}
                             </select>
                             <ChevronDown size={14} className="text-slate-400 pointer-events-none absolute right-0" />
                         </div>
@@ -334,7 +347,7 @@ export const RestockTool = () => {
                                 Ver todo
                             </button>
                         )}
-                        {!isConsulta && (
+                        {!isConsulta && !isEventSelected && (
                             <>
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
@@ -360,6 +373,15 @@ export const RestockTool = () => {
                                 </button>
                             </>
                         )}
+                        {!isConsulta && isEventSelected && (
+                            <button
+                                onClick={handleCalculate}
+                                className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-skin-accent hover:bg-pink-700 text-white rounded-lg font-medium shadow-sm shadow-skin-accent/30 transition-all"
+                            >
+                                <Calculator size={15} />
+                                Continuar Orden
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -368,9 +390,13 @@ export const RestockTool = () => {
                         <thead className="text-xs uppercase bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 sticky top-0 z-10 shadow-sm">
                             <tr>
                             <th className="px-6 py-4">Producto</th>
-                            <th className="px-6 py-4 text-center">Stock Mínimo<br /><span className="text-[10px] normal-case font-normal">(Base recomendada)</span></th>
-                            <th className="px-6 py-4 text-center">Existencia Real<br /><span className="text-[10px] normal-case font-normal">(Inventario actual)</span></th>
-                            <th className="px-6 py-4 text-center">A Despachar</th>
+                            {!isEventSelected && (
+                                <>
+                                    <th className="px-6 py-4 text-center">Stock Mínimo<br /><span className="text-[10px] normal-case font-normal">(Base recomendada)</span></th>
+                                    <th className="px-6 py-4 text-center">Existencia Real<br /><span className="text-[10px] normal-case font-normal">(Inventario actual)</span></th>
+                                </>
+                            )}
+                            <th className="px-6 py-4 text-center">{isEventSelected ? 'A Solicitar' : 'A Despachar'}</th>
                         </tr>
                     </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -411,40 +437,56 @@ export const RestockTool = () => {
                                             </div>
                                         </td>
 
-                                        <td className="px-6 py-3 text-center">
-                                            <input
-                                                type="number"
-                                                min={0}
-                                                value={row.base_stock}
-                                                onChange={(e) => updateRow(row.product.id, 'base_stock', parseInt(e.target.value) || 0)}
-                                                disabled={isConsulta || (userRole !== 'master' && userRole !== 'admin')}
-                                                className="w-20 text-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 focus:border-skin-accent focus:outline-none focus:ring-1 focus:ring-skin-accent text-sm font-medium disabled:opacity-60"
-                                            />
-                                        </td>
+                                        {!isEventSelected && (
+                                            <>
+                                                <td className="px-6 py-3 text-center">
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        value={row.base_stock}
+                                                        onChange={(e) => updateRow(row.product.id, 'base_stock', parseInt(e.target.value) || 0)}
+                                                        disabled={isConsulta || (userRole !== 'master' && userRole !== 'admin')}
+                                                        className="w-20 text-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 focus:border-skin-accent focus:outline-none focus:ring-1 focus:ring-skin-accent text-sm font-medium disabled:opacity-60"
+                                                    />
+                                                </td>
 
-                                        {/* Current Stock (editable) */}
-                                        <td className="px-6 py-3 text-center">
-                                            <input
-                                                type="number"
-                                                min={0}
-                                                value={row.current_stock}
-                                                onChange={(e) => updateRow(row.product.id, 'current_stock', parseInt(e.target.value) || 0)}
-                                                disabled={isConsulta}
-                                                className={`w-20 text-center rounded-lg border px-2 py-1.5 focus:outline-none focus:ring-1 text-sm font-medium transition-colors ${row.current_stock < row.base_stock
-                                                        ? 'border-red-300 bg-red-50 text-red-600 focus:border-red-400 focus:ring-red-400'
-                                                        : 'border-slate-200 bg-slate-50 focus:border-skin-accent focus:ring-skin-accent'
-                                                    } disabled:opacity-60`}
-                                            />
-                                        </td>
+                                                {/* Current Stock (editable) */}
+                                                <td className="px-6 py-3 text-center">
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        value={row.current_stock}
+                                                        onChange={(e) => updateRow(row.product.id, 'current_stock', parseInt(e.target.value) || 0)}
+                                                        disabled={isConsulta}
+                                                        className={`w-20 text-center rounded-lg border px-2 py-1.5 focus:outline-none focus:ring-1 text-sm font-medium transition-colors ${row.current_stock < row.base_stock
+                                                                ? 'border-red-300 bg-red-50 text-red-600 focus:border-red-400 focus:ring-red-400'
+                                                                : 'border-slate-200 bg-slate-50 focus:border-skin-accent focus:ring-skin-accent'
+                                                            } disabled:opacity-60`}
+                                                    />
+                                                </td>
+                                            </>
+                                        )}
 
                                         {/* Dispatch Amount */}
                                         <td className="px-6 py-3 text-center">
-                                            {row.dispatch_qty > 0 ? (
-                                                <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-bold bg-skin-accent text-white shadow-sm shadow-skin-accent/30">
-                                                    +{row.dispatch_qty}
-                                                </span>
+                                            {isEventSelected ? (
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    value={row.dispatch_qty || ''}
+                                                    onChange={(e) => updateRow(row.product.id, 'dispatch_qty', parseInt(e.target.value) || 0)}
+                                                    disabled={isConsulta}
+                                                    placeholder="0"
+                                                    className="w-24 text-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 focus:border-skin-accent focus:outline-none focus:ring-1 focus:ring-skin-accent text-sm font-bold shadow-inner disabled:opacity-60 text-slate-800"
+                                                />
                                             ) : (
-                                                <span className="text-slate-300 text-lg font-bold">—</span>
+                                                row.dispatch_qty > 0 ? (
+                                                    <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-bold bg-skin-accent text-white shadow-sm shadow-skin-accent/30">
+                                                        +{row.dispatch_qty}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-300 text-lg font-bold">—</span>
+                                                )
                                             )}
                                         </td>
                                     </tr>

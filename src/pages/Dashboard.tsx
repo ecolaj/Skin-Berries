@@ -42,14 +42,14 @@ export const Dashboard = () => {
     
     // Auth & Permissions
     const { profile } = useAuth();
-    const assignedStoreId = profile?.store_id;
+    const assignedStoreIds = profile?.assigned_stores || [];
 
-    // Si tiene tienda asignada, forzar el filtro
+    // Si tiene una sola tienda asignada, forzar el filtro
     useEffect(() => {
-        if (assignedStoreId) {
-            setSelectedStore(assignedStoreId);
+        if (assignedStoreIds.length === 1) {
+            setSelectedStore(assignedStoreIds[0]);
         }
-    }, [assignedStoreId]);
+    }, [assignedStoreIds.length]);
     
     const [stats, setStats] = useState({
         totalValuation: 0,
@@ -92,10 +92,10 @@ export const Dashboard = () => {
             let inventoryQuery = supabase.from('store_inventory').select('*');
             let ordersQuery = supabase.from('dispatch_orders').select('*, dispatch_order_items(*)');
 
-            if (assignedStoreId) {
-                storesQuery = storesQuery.eq('id', assignedStoreId);
-                inventoryQuery = inventoryQuery.eq('store_id', assignedStoreId);
-                ordersQuery = ordersQuery.eq('store_id', assignedStoreId);
+            if (assignedStoreIds.length > 0) {
+                storesQuery = storesQuery.in('id', assignedStoreIds);
+                inventoryQuery = inventoryQuery.in('store_id', assignedStoreIds);
+                ordersQuery = ordersQuery.in('store_id', assignedStoreIds);
             }
 
             const [
@@ -239,10 +239,11 @@ export const Dashboard = () => {
                         <select 
                             value={selectedStore} 
                             onChange={(e) => setSelectedStore(e.target.value)}
-                            disabled={loading || !!assignedStoreId}
+                            disabled={loading || assignedStoreIds.length === 1}
                             className="bg-transparent outline-none text-slate-700 font-bold text-sm cursor-pointer disabled:cursor-default"
                         >
-                            <option value="all">Todas las tiendas</option>
+                            {assignedStoreIds.length === 0 && <option value="all">Todas las tiendas</option>}
+                            {assignedStoreIds.length > 1 && <option value="all">Mis tiendas asignadas</option>}
                             {storesList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                     </div>

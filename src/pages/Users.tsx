@@ -9,6 +9,64 @@ import { ProfileModal } from '../components/ProfileModal';
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type StoreType = Database['public']['Tables']['stores']['Row'];
 
+const StoreMultiSelect = ({ 
+    assignedStores, 
+    stores, 
+    onChange, 
+    disabled 
+}: { 
+    assignedStores: string[], 
+    stores: StoreType[], 
+    onChange: (newIds: string[]) => void,
+    disabled: boolean
+}) => {
+    const [open, setOpen] = useState(false);
+    return (
+        <div className="relative">
+            <button 
+                disabled={disabled} 
+                onClick={() => setOpen(!open)}
+                className="bg-transparent border border-slate-200 rounded-lg px-2 py-1 text-sm text-left truncate w-40 disabled:opacity-50 flex justify-between items-center"
+            >
+                <span className="truncate">{assignedStores.length === 0 ? '-- Sin Restricción --' : `${assignedStores.length} suc.`}</span>
+            </button>
+            {open && (
+                <div className="absolute top-full mt-1 left-0 w-64 bg-white border border-slate-200 rounded-lg shadow-xl z-50 p-2 max-h-60 overflow-y-auto">
+                    <label className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 cursor-pointer rounded border-b border-slate-100 mb-1 pb-2">
+                        <input 
+                            type="checkbox" 
+                            checked={assignedStores.length === 0}
+                            onChange={() => {
+                                onChange([]);
+                                setOpen(false);
+                            }}
+                        /> 
+                        <span className="text-sm font-bold text-slate-700">Sin Restricción (Ver Todo)</span>
+                    </label>
+                    {stores.map(s => (
+                        <label key={s.id} className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 cursor-pointer rounded">
+                            <input 
+                                type="checkbox" 
+                                checked={assignedStores.includes(s.id)}
+                                onChange={(e) => {
+                                    if (e.target.checked) {
+                                        onChange([...assignedStores, s.id]);
+                                    } else {
+                                        onChange(assignedStores.filter(id => id !== s.id));
+                                    }
+                                }}
+                            />
+                            <span className="text-sm text-slate-700 truncate">{s.type === 'event' ? '(Ev) ' : ''}{s.name}</span>
+                        </label>
+                    ))}
+                    <button className="w-full mt-2 bg-skin-accent text-white py-1 rounded-md text-sm font-bold shadow-sm shadow-skin-accent/30" onClick={() => setOpen(false)}>Confirmar</button>
+                </div>
+            )}
+            {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />}
+        </div>
+    );
+};
+
 export const Users = () => {
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [stores, setStores] = useState<StoreType[]>([]);
@@ -77,15 +135,15 @@ export const Users = () => {
         }
     };
 
-    const handleUpdateStore = async (userId: string, newStoreId: string) => {
+    const handleUpdateStores = async (userId: string, newStores: string[]) => {
         setSaving(userId);
-        const storeValue = newStoreId === 'none' ? null : newStoreId;
-        const { error } = await supabase.from('profiles').update({ store_id: storeValue }).eq('id', userId);
+        const storesValue = newStores.length === 0 ? null : newStores;
+        const { error } = await supabase.from('profiles').update({ assigned_stores: storesValue }).eq('id', userId);
         setSaving(null);
         if (!error) {
-            setProfiles(profiles.map(p => p.id === userId ? { ...p, store_id: storeValue } : p));
+            setProfiles(profiles.map(p => p.id === userId ? { ...p, assigned_stores: storesValue } : p));
         } else {
-            showAlert('Error al asignar tienda: ' + error.message);
+            showAlert('Error al asignar tiendas/eventos: ' + error.message);
         }
     };
 
@@ -115,22 +173,22 @@ export const Users = () => {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="flex flex-col h-[calc(100vh-4rem)] space-y-6">
+            <div className="shrink-0 flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Usuarios y Roles</h1>
                     <p className="text-slate-500 mt-1">Administra los accesos al sistema y asigna encargados a las tiendas.</p>
                 </div>
             </div>
 
-            <div className="bg-skin-card rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-slate-600">
-                        <thead className="text-xs uppercase bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
+            <div className="flex-1 flex flex-col min-h-0 bg-skin-card rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div className="flex-1 overflow-x-auto overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    <table className="w-full text-left text-sm text-slate-600 relative">
+                        <thead className="text-xs uppercase bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 sticky top-0 z-10 shadow-sm">
                             <tr>
                                 <th className="px-6 py-4">Usuario</th>
                                 <th className="px-6 py-4">Rol en el Sistema</th>
-                                <th className="px-6 py-4">Tienda Asignada</th>
+                                <th className="px-6 py-4">Asignaciones</th>
                                 <th className="px-6 py-4 text-center">Estado</th>
                             </tr>
                         </thead>
@@ -180,7 +238,9 @@ export const Users = () => {
                                                 >
                                                     <option value="consulta">Consulta</option>
                                                     <option value="operador">Operador</option>
-                                                    <option value="store_manager">Encargado de Tienda</option>
+                                                    <option value="store_manager">Encargado</option>
+                                                    <option value="mercadeo">Mercadeo</option>
+                                                    <option value="ventas">Ventas</option>
                                                     <option value="admin">Administrador</option>
                                                     <option value="master">Master</option>
                                                 </select>
@@ -188,18 +248,13 @@ export const Users = () => {
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
-                                                <Store size={16} className="text-slate-400" />
-                                                <select
-                                                    value={profile.store_id || 'none'}
-                                                    onChange={(e) => handleUpdateStore(profile.id, e.target.value)}
+                                                <Store size={16} className="text-slate-400 mt-0.5" />
+                                                <StoreMultiSelect 
+                                                    assignedStores={profile.assigned_stores || []}
+                                                    stores={stores}
+                                                    onChange={(newStores) => handleUpdateStores(profile.id, newStores)}
                                                     disabled={saving === profile.id || profile.role === 'master'}
-                                                    className="bg-transparent border border-slate-200 rounded-lg px-2 py-1 outline-none focus:border-skin-accent max-w-[200px] truncate disabled:opacity-50 disabled:bg-slate-50"
-                                                >
-                                                    <option value="none">-- Sin Asignar --</option>
-                                                    {stores.map(s => (
-                                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                                    ))}
-                                                </select>
+                                                />
                                             </div>
                                             {profile.role === 'master' && <p className="text-[10px] text-skin-accent mt-1 italic">Master tiene acceso total</p>}
                                         </td>

@@ -6,6 +6,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { RestockTool } from './pages/RestockTool';
 import { Stores } from './pages/Stores';
+import { Events } from './pages/Events';
 import { Products } from './pages/Products';
 import { DispatchHistory } from './pages/DispatchHistory';
 import { Users } from './pages/Users';
@@ -34,6 +35,7 @@ function App() {
           }>
             <Route index element={<Dashboard />} />
             <Route path="stores" element={<Stores />} />
+            <Route path="events" element={<Events />} />
             <Route path="products" element={<Products />} />
             <Route path="restock" element={<RestockTool />} />
             <Route path="dispatch-history" element={<DispatchHistory />} />

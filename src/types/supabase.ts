@@ -143,21 +143,23 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
-          is_active: boolean | null
+          is_active: boolean
           job_title: string | null
           role: Database["public"]["Enums"]["user_role"]
-          store_id: string | null
+          assigned_stores: string[] | null
+          updated_at: string
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
-          id: string
-          is_active?: boolean | null
+          id?: string
+          is_active?: boolean
           job_title?: string | null
           role?: Database["public"]["Enums"]["user_role"]
-          store_id?: string | null
+          assigned_stores?: string[] | null
+          updated_at?: string
         }
         Update: {
           avatar_url?: string | null
@@ -165,10 +167,11 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
           job_title?: string | null
           role?: Database["public"]["Enums"]["user_role"]
-          store_id?: string | null
+          assigned_stores?: string[] | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -261,8 +264,15 @@ export type Database = {
     }
     Enums: {
       dispatch_status: "pendiente" | "despachado" | "recibido" | "anulada"
-      store_type: "warehouse" | "store"
-      user_role: "admin" | "store_manager" | "master" | "operador" | "consulta"
+      store_type: "warehouse" | "store" | "event"
+      user_role:
+        | "admin"
+        | "store_manager"
+        | "master"
+        | "operador"
+        | "consulta"
+        | "mercadeo"
+        | "ventas"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -391,7 +401,7 @@ export const Constants = {
   public: {
     Enums: {
       dispatch_status: ["pendiente", "despachado", "recibido", "anulada"],
-      store_type: ["warehouse", "store"],
+      store_type: ["warehouse", "store", "event"],
       user_role: ["admin", "store_manager", "master", "operador", "consulta"],
     },
   },
