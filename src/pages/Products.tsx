@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import type { Database } from '../types/supabase';
@@ -81,14 +81,14 @@ export const Products = () => {
     const inactiveCount = products.filter((p) => !p.is_active).length;
     const totalGlobalCount = products.length;
 
-    const fetchProducts = async () => {
-        setLoading(true);
+    const fetchProducts = useCallback(async () => {
+        // setLoading(true);
         const { data } = await supabase.from('products').select('*').order('name');
         if (data) setProducts(data);
         setLoading(false);
-    };
+    }, []);
 
-    useEffect(() => { fetchProducts(); }, []);
+    useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
     const openAddModal = () => {
         setEditingProduct(null);

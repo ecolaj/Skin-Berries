@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getAllowedStores } from '../utils/storeAccess';
@@ -56,7 +56,7 @@ export const DispatchHistory = () => {
 
     const showAlert = (msg: string) => { setAlertMessage(msg); setAlertOpen(true); };
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         const { data: allStores } = await supabase.from('stores').select('*').in('type', ['store', 'event']).eq('is_active', true).order('name');
         
@@ -93,11 +93,11 @@ export const DispatchHistory = () => {
         }
         
         setLoading(false);
-    };
+    }, [profile]);
 
     useEffect(() => {
         if (profile) fetchData();
-    }, [profile]);
+    }, [profile, fetchData]);
 
     const handleOpenPreview = async (order: DispatchOrder) => {
         setPreviewOrder(order);

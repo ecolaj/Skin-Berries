@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { X, Loader2, Camera, UserCircle } from 'lucide-react';
 import type { Database } from '../types/supabase';
@@ -35,19 +35,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        if (isOpen && user) {
-            fetchProfile();
-        }
-    }, [isOpen, user]);
-
-    const fetchProfile = async () => {
+    const fetchProfile = useCallback(async () => {
         if (!user) return;
         setLoading(true);
         const { data } = await supabase
             .from('profiles')
             .select('*')
-            .eq('id', user.id || (user as any).id)
+            .eq('id', user.id || (user as { id: string }).id) // removed any
             .single();
             
         if (data) {
@@ -58,7 +52,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             setAvatarPreview(data.avatar_url || null);
         }
         setLoading(false);
-    };
+    }, [user]);
+
+    useEffect(() => {
+        if (isOpen && user) {
+            fetchProfile();
+        }
+    }, [isOpen, user, fetchProfile]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];

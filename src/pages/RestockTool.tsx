@@ -64,7 +64,7 @@ export const RestockTool = () => {
         supabase.from('products').select('*').eq('is_active', true).order('name').then(({ data }) => {
             if (data) setAllProducts(data);
         });
-    }, []);
+    }, [profile]);
 
     // Load inventory for selected store
     const loadInventory = useCallback(async () => {

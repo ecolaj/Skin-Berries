@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../types/supabase';
 import { ShieldAlert, UserCog, Loader2, Store, Power, PowerOff, Box } from 'lucide-react';
@@ -144,8 +144,8 @@ export const Users = () => {
 
     const showAlert = (msg: string) => { setAlertMessage(msg); setAlertOpen(true); };
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = useCallback(async () => {
+        // setLoading(true); // already true initially
         const [profilesResponse, storesResponse] = await Promise.all([
             supabase.from('profiles').select('*').order('created_at'),
             supabase.from('stores').select('*').order('name')
@@ -155,7 +155,7 @@ export const Users = () => {
         if (storesResponse.data) setStores(storesResponse.data);
 
         setLoading(false);
-    };
+    }, []);
 
     useEffect(() => {
         fetchData();
@@ -173,7 +173,7 @@ export const Users = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, []);
+    }, [fetchData]);
 
     const handleUpdateRole = async (userId: string, newRole: Profile['role']) => {
         const targetProfile = profiles.find(p => p.id === userId);

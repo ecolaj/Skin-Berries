@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -32,6 +32,13 @@ import {
 
 import { InfoModal } from '../components/InfoModal';
 
+const months = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+
+const years = [2024, 2025, 2026];
+
 export const Dashboard = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
@@ -62,18 +69,12 @@ export const Dashboard = () => {
         return 'Q' + val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
-    const months = [
-        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-    ];
-
-    const years = [2024, 2025, 2026];
 
     useEffect(() => {
         fetchDashboardData();
-    }, [selectedMonth, selectedYear, selectedStore]);
+    }, [fetchDashboardData]);
 
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = useCallback(async () => {
         setLoading(true);
         try {
             // Range for filtering orders
@@ -222,7 +223,7 @@ export const Dashboard = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [selectedMonth, selectedYear, selectedStore, profile]);
 
     const COLORS = ['#b76c77', '#E8B4B8', '#1E293B', '#64748b', '#94a3b8'];
 

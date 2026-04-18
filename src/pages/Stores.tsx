@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getAllowedStores } from '../utils/storeAccess';
@@ -33,16 +33,16 @@ export const Stores = () => {
 
     const showAlert = (msg: string) => { setAlertMessage(msg); setAlertOpen(true); };
 
-    const fetchStores = async () => {
-        setLoading(true);
+    const fetchStores = useCallback(async () => {
+        // setLoading(true);
         const { data } = await supabase.from('stores').select('*').in('type', ['store', 'warehouse']).order('name');
         if (data) {
             setStores(getAllowedStores(data, profile));
         }
         setLoading(false);
-    };
+    }, [profile]);
 
-    useEffect(() => { fetchStores(); }, []);
+    useEffect(() => { fetchStores(); }, [fetchStores]);
 
     const openAddModal = () => {
         setEditingStore(null);

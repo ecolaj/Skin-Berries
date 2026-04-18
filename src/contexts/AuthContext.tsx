@@ -13,6 +13,7 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType>({ user: null, profile: null, loading: true });
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -22,7 +23,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     useEffect(() => {
         let isMounted = true;
-        let profileSubscription: any = null;
+        let profileSubscription: ReturnType<typeof supabase.channel> | null = null;
 
         const checkUserStatus = async (currentUser: User | null) => {
             if (!currentUser) {
