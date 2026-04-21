@@ -7,7 +7,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { Store, Settings, LogOut, PackageSearch, LayoutDashboard, Users, Box, ChevronDown, Target, ClipboardList, Ticket, Menu, X } from 'lucide-react';
 
 export const Layout = () => {
-    const { user, profile } = useAuth();
+    const { user, profile, refreshProfile } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     
@@ -184,7 +184,7 @@ export const Layout = () => {
                 isOpen={isProfileModalOpen}
                 onClose={() => setIsProfileModalOpen(false)}
                 user={user}
-                onProfileUpdated={() => {}}
+                onProfileUpdated={() => refreshProfile()}
             />
 
             {/* Logout Confirmation Modal */}

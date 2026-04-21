@@ -9,9 +9,10 @@ type AuthContextType = {
     user: User | null;
     profile: Profile | null;
     loading: boolean;
+    refreshProfile: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType>({ user: null, profile: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ user: null, profile: null, loading: true, refreshProfile: async () => {} });
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
@@ -83,8 +84,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
     }, []);
 
+    const refreshProfile = async () => {
+        if (!user) return;
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (data) {
+            setProfile(data);
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ user, profile, loading }}>
+        <AuthContext.Provider value={{ user, profile, loading, refreshProfile }}>
             {children}
         </AuthContext.Provider>
     );
