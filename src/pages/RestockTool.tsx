@@ -155,7 +155,7 @@ export const RestockTool = () => {
                 const parts = line.split(delimiter);
                 if (parts.length < 2) return;
 
-                const code = parts[0].trim();
+                const code = parts[0].trim().replace(/^\uFEFF/, '');
                 const qtyStr = parts[1].trim();
                 
                 if (!code || isNaN(parseInt(qtyStr))) return;
