@@ -359,7 +359,7 @@ export const Dashboard = () => {
                             </div>
                             <div className="h-[300px] w-full">
                                 {trendData && trendData.some(d => d.orders > 0) ? (
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <AreaChart data={trendData}>
                                             <defs>
                                                 <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
@@ -391,7 +391,7 @@ export const Dashboard = () => {
                             <p className="text-sm text-slate-400 mb-8">Capital distribuido en marcas</p>
                             <div className="h-[250px] w-full">
                                 {brandData && brandData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <PieChart>
                                             <Pie
                                                 data={brandData}
@@ -427,7 +427,7 @@ export const Dashboard = () => {
                             </div>
                             <div className="h-[250px] w-full">
                                 {topProducts && topProducts.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <BarChart data={topProducts} layout="vertical">
                                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                             <XAxis type="number" hide />
@@ -452,7 +452,7 @@ export const Dashboard = () => {
                             </div>
                             <div className="h-[250px] w-full">
                                 {storeLoad && storeLoad.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <BarChart data={storeLoad}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} />
