@@ -15,7 +15,7 @@ import {
 
 interface AuditLog {
     id: string;
-    user_id: string;
+    user_id: string | null;
     action: string;
     entity_type: string | null;
     entity_id: string | null;
@@ -24,7 +24,7 @@ interface AuditLog {
     profiles?: {
         full_name: string | null;
         email: string | null;
-    };
+    } | null;
 }
 
 export const AuditLogs = () => {

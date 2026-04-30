@@ -70,10 +70,6 @@ export const Dashboard = () => {
     };
 
 
-    useEffect(() => {
-        fetchDashboardData();
-    }, [fetchDashboardData]);
-
     const fetchDashboardData = useCallback(async () => {
         setLoading(true);
         try {
@@ -224,6 +220,10 @@ export const Dashboard = () => {
             setLoading(false);
         }
     }, [selectedMonth, selectedYear, selectedStore, profile]);
+
+    useEffect(() => {
+        fetchDashboardData();
+    }, [fetchDashboardData]);
 
     const COLORS = ['#b76c77', '#E8B4B8', '#1E293B', '#64748b', '#94a3b8'];
 
