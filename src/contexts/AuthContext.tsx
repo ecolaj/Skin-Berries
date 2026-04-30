@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { logAction } from '../utils/logger';
 import type { User } from '@supabase/supabase-js';
 import type { Database } from '../types/supabase';
 
@@ -21,12 +22,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
+    const lastUserRef = useRef<string | null>(null);
 
     useEffect(() => {
         let isMounted = true;
         let profileSubscription: ReturnType<typeof supabase.channel> | null = null;
 
         const checkUserStatus = async (currentUser: User | null) => {
+            // Log Login/Logout
+            if (currentUser?.id !== lastUserRef.current) {
+                if (currentUser) {
+                    logAction('LOGIN', { email: currentUser.email });
+                } else if (lastUserRef.current) {
+                    logAction('LOGOUT');
+                }
+                lastUserRef.current = currentUser?.id || null;
+            }
+
             if (!currentUser) {
                 if (isMounted) {
                     setUser(null);

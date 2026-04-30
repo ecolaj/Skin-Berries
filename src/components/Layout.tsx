@@ -4,7 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { ProfileModal } from './ProfileModal';
 import { ConfirmModal } from './ConfirmModal';
-import { Store, Settings, LogOut, PackageSearch, LayoutDashboard, Users, Box, ChevronDown, Target, ClipboardList, Ticket, Menu, X } from 'lucide-react';
+import { Store, Settings, LogOut, PackageSearch, LayoutDashboard, Users, Box, ChevronDown, Target, ClipboardList, Ticket, Menu, X, Activity } from 'lucide-react';
+
+import { logAction } from '../utils/logger';
 
 export const Layout = () => {
     const { user, profile, refreshProfile } = useAuth();
@@ -15,6 +17,13 @@ export const Layout = () => {
     const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+    // Page view logging
+    useEffect(() => {
+        if (user) {
+            logAction('PAGE_VIEW', { title: document.title });
+        }
+    }, [location.pathname, user]);
 
     // Close sidebar when navigating on mobile
     useEffect(() => {
@@ -39,6 +48,7 @@ export const Layout = () => {
     const configItems = [
         { to: "/users", icon: <Users size={18} />, label: "Usuarios y Roles" },
         { to: "/goals", icon: <Target size={18} />, label: "Metas Corporativas" },
+        { to: "/audit-logs", icon: <Activity size={18} />, label: "Bitácora de Usuario" },
     ];
 
     const canSeeConfig = profile?.role === 'master' || profile?.role === 'admin';

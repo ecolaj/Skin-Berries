@@ -10,6 +10,7 @@ import { Events } from './pages/Events';
 import { Products } from './pages/Products';
 import { DispatchHistory } from './pages/DispatchHistory';
 import { Users } from './pages/Users';
+import { AuditLogs } from './pages/AuditLogs';
 import { ComingSoon } from './pages/ComingSoon';
 import { Target, Settings } from 'lucide-react';
 
@@ -40,6 +41,7 @@ function App() {
             <Route path="restock" element={<RestockTool />} />
             <Route path="dispatch-history" element={<DispatchHistory />} />
             <Route path="users" element={<Users />} />
+            <Route path="audit-logs" element={<AuditLogs />} />
             <Route path="goals" element={<ComingSoon title="Metas Corporativas" icon={Target} />} />
             <Route path="settings" element={<ComingSoon title="Ajustes de Sistema" icon={Settings} />} />
           </Route>
