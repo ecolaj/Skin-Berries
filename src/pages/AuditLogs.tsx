@@ -2,12 +2,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { 
-    Activity, 
-    Search, 
     Calendar, 
     User as UserIcon, 
     Filter,
-    ArrowUpDown,
     Info,
     Loader2,
     History
@@ -31,7 +28,6 @@ export const AuditLogs = () => {
     const { profile } = useAuth();
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
     const [selectedUser, setSelectedUser] = useState('all');
     const [selectedAction, setSelectedAction] = useState('all');
     const [usersList, setUsersList] = useState<{ id: string; name: string }[]>([]);
