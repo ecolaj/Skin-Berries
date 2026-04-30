@@ -190,15 +190,15 @@ export const AuditLogs = () => {
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-2xl shadow-md border border-slate-100 overflow-hidden">
-                <div className="overflow-x-auto">
+            <div className="bg-white rounded-2xl shadow-md border border-slate-100 overflow-hidden flex flex-col">
+                <div className="overflow-x-auto overflow-y-auto max-h-[70vh] custom-scrollbar">
                     <table className="w-full text-left text-sm border-separate border-spacing-0">
-                        <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
+                        <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px]">Fecha y Hora</th>
-                                <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px]">Usuario</th>
-                                <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px]">Acción</th>
-                                <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px]">Detalles</th>
+                                <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px] bg-slate-50 border-b border-slate-100">Fecha y Hora</th>
+                                <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px] bg-slate-50 border-b border-slate-100">Usuario</th>
+                                <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px] bg-slate-50 border-b border-slate-100">Acción</th>
+                                <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px] bg-slate-50 border-b border-slate-100">Detalles</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
