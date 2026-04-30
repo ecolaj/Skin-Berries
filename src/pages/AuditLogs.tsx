@@ -192,8 +192,8 @@ export const AuditLogs = () => {
             {/* Table */}
             <div className="bg-white rounded-2xl shadow-md border border-slate-100 overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 border-b border-slate-100">
+                    <table className="w-full text-left text-sm border-separate border-spacing-0">
+                        <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                             <tr>
                                 <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px]">Fecha y Hora</th>
                                 <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-widest text-[10px]">Usuario</th>
