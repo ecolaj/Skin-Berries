@@ -97,6 +97,21 @@ export const DispatchHistory = () => {
 
     useEffect(() => {
         if (profile) fetchData();
+
+        // Suscripción en tiempo real para cambios en órdenes
+        const channel = supabase
+            .channel('orders_realtime')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'dispatch_orders' }, 
+                () => {
+                    fetchData();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [profile, fetchData]);
 
     const handleOpenPreview = async (order: DispatchOrder) => {

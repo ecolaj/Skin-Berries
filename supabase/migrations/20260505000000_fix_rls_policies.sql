@@ -129,3 +129,47 @@ CREATE POLICY "Public Access to product images" ON storage.objects FOR SELECT US
 CREATE POLICY "Authenticated users can upload product images" ON storage.objects FOR INSERT WITH CHECK ( bucket_id = 'product-images' AND auth.role() = 'authenticated' );
 CREATE POLICY "Authenticated users can update product images" ON storage.objects FOR UPDATE USING ( bucket_id = 'product-images' AND auth.role() = 'authenticated' );
 CREATE POLICY "Authenticated users can delete product images" ON storage.objects FOR DELETE USING ( bucket_id = 'product-images' AND auth.role() = 'authenticated' );
+
+-- 7. ENABLE REALTIME for all tables
+-- This allows the frontend to listen for changes and update automatically.
+-- Note: Make sure the publication 'supabase_realtime' exists (default in Supabase)
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+END $$;
+
+ALTER PUBLICATION supabase_realtime ADD TABLE stores;
+ALTER PUBLICATION supabase_realtime ADD TABLE products;
+ALTER PUBLICATION supabase_realtime ADD TABLE profiles;
+ALTER PUBLICATION supabase_realtime ADD TABLE dispatch_orders;
+ALTER PUBLICATION supabase_realtime ADD TABLE dispatch_order_items;
+ALTER PUBLICATION supabase_realtime ADD TABLE store_inventory;
+
+-- 8. DEFAULT ROLE & AUTO-PROFILE CREATION
+-- Set default role to 'operador' for new profile entries
+ALTER TABLE profiles ALTER COLUMN role SET DEFAULT 'operador';
+
+-- Function to handle new user creation from auth.users
+-- This ensures that EVERY new user gets a profile and starts as an 'operador'
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, full_name, email, role, is_active)
+  VALUES (
+    new.id,
+    COALESCE(new.raw_user_meta_data->>'full_name', 'Nuevo Usuario'),
+    new.email,
+    'operador',
+    true
+  );
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to call the function after a user signs up
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();

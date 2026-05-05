@@ -163,9 +163,9 @@ export const Users = () => {
         const channel = supabase
             .channel('profiles_changes')
             .on('postgres_changes', 
-                { event: 'UPDATE', schema: 'public', table: 'profiles' }, 
-                (payload) => {
-                    setProfiles(current => current.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p) as Profile[]);
+                { event: '*', schema: 'public', table: 'profiles' }, 
+                () => {
+                    fetchData();
                 }
             )
             .subscribe();

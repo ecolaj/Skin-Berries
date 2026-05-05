@@ -42,7 +42,24 @@ export const Stores = () => {
         setLoading(false);
     }, [profile]);
 
-    useEffect(() => { fetchStores(); }, [fetchStores]);
+    useEffect(() => { 
+        fetchStores(); 
+        
+        // Suscripción en tiempo real
+        const channel = supabase
+            .channel('stores_realtime')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'stores' }, 
+                () => {
+                    fetchStores();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [fetchStores]);
 
     const openAddModal = () => {
         setEditingStore(null);

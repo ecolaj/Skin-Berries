@@ -88,7 +88,24 @@ export const Products = () => {
         setLoading(false);
     }, []);
 
-    useEffect(() => { fetchProducts(); }, [fetchProducts]);
+    useEffect(() => { 
+        fetchProducts(); 
+        
+        // Suscripción en tiempo real
+        const channel = supabase
+            .channel('products_realtime')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'products' }, 
+                () => {
+                    fetchProducts();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [fetchProducts]);
 
     const openAddModal = () => {
         setEditingProduct(null);

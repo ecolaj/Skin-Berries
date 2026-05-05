@@ -95,7 +95,29 @@ export const RestockTool = () => {
         setLoading(false);
     }, [selectedStoreId, allProducts]);
 
-    useEffect(() => { loadInventory(); }, [loadInventory]);
+    useEffect(() => { 
+        loadInventory(); 
+        
+        // Suscripción en tiempo real para cambios en inventario
+        const channel = supabase
+            .channel('inventory_realtime')
+            .on('postgres_changes', 
+                { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'store_inventory',
+                    filter: selectedStoreId ? `store_id=eq.${selectedStoreId}` : undefined
+                }, 
+                () => {
+                    loadInventory();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [loadInventory, selectedStoreId]);
 
     const updateRow = (productId: string, field: 'base_stock' | 'current_stock' | 'dispatch_qty', value: number) => {
         setRows(prev => prev.map(r => {
