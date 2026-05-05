@@ -13,8 +13,8 @@ export const getAllowedStores = (stores: StoreType[], profile: Profile | null): 
     const role = profile.role || '';
     const assignedStores = profile.assigned_stores || [];
 
-    // Master y Admin siempre tienen acceso a todo (ver en UI como "Sin Restricción")
-    if (role === 'master' || role === 'admin') {
+    // Master, Admin y Operador siempre tienen acceso a todo (ver en UI como "Sin Restricción")
+    if (role === 'master' || role === 'admin' || role === 'operador') {
         return stores;
     }
 
