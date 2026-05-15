@@ -23,76 +23,101 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
     const lastUserRef = useRef<string | null>(null);
+    const profileSubscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
     useEffect(() => {
         let isMounted = true;
-        let profileSubscription: ReturnType<typeof supabase.channel> | null = null;
 
-        const checkUserStatus = async (currentUser: User | null) => {
-            // Log Login/Logout
-            if (currentUser?.id !== lastUserRef.current) {
-                if (currentUser) {
-                    logAction('LOGIN', { email: currentUser.email });
-                } else if (lastUserRef.current) {
-                    logAction('LOGOUT');
+        const fetchAndSetProfile = async (currentUser: User) => {
+            const { data } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
+
+            if (!isMounted) return;
+
+            if (data && data.is_active === false) {
+                await supabase.auth.signOut();
+                setUser(null);
+                setProfile(null);
+                lastUserRef.current = null;
+                profileSubscriptionRef.current?.unsubscribe();
+                profileSubscriptionRef.current = null;
+            } else {
+                setUser(currentUser);
+                setProfile(data || null);
+
+                // Setup realtime subscription for this profile if not already set
+                if (!profileSubscriptionRef.current) {
+                    profileSubscriptionRef.current = supabase
+                        .channel(`profile_${currentUser.id}`)
+                        .on('postgres_changes',
+                            { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${currentUser.id}` },
+                            (payload) => {
+                                if (isMounted) setProfile(payload.new as Profile);
+                            }
+                        )
+                        .subscribe();
                 }
-                lastUserRef.current = currentUser?.id || null;
             }
+            setLoading(false);
+        };
 
-            if (!currentUser) {
-                if (isMounted) {
-                    setUser(null);
-                    setProfile(null);
-                    setLoading(false);
-                    if (profileSubscription) {
-                        profileSubscription.unsubscribe();
-                        profileSubscription = null;
-                    }
-                }
+        // Initial session load
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!isMounted) return;
+            const currentUser = session?.user ?? null;
+            if (currentUser) {
+                logAction('LOGIN', { email: currentUser.email });
+                lastUserRef.current = currentUser.id;
+                fetchAndSetProfile(currentUser);
+            } else {
+                setUser(null);
+                setProfile(null);
+                setLoading(false);
+            }
+        });
+
+        // Listen for auth state changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (!isMounted) return;
+
+            const currentUser = session?.user ?? null;
+
+            // TOKEN_REFRESHED, SIGNED_IN when tab regains focus: skip if same user to avoid
+            // re-fetching data and resetting in-progress form states in other components.
+            if (
+                (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') &&
+                currentUser?.id === lastUserRef.current
+            ) {
                 return;
             }
 
-            // Check profile in DB
-            const { data } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
-            
-            if (isMounted) {
-                if (data && data.is_active === false) {
-                    await supabase.auth.signOut();
-                    setUser(null);
-                    setProfile(null);
-                } else {
-                    setUser(currentUser);
-                    setProfile(data || null);
-
-                    // Setup realtime subscription for this profile if not already set
-                    if (!profileSubscription) {
-                        profileSubscription = supabase
-                            .channel(`profile_${currentUser.id}`)
-                            .on('postgres_changes', 
-                                { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${currentUser.id}` }, 
-                                (payload) => {
-                                    if (isMounted) setProfile(payload.new as Profile);
-                                }
-                            )
-                            .subscribe();
-                    }
+            if (currentUser) {
+                // New login or user switch
+                if (currentUser.id !== lastUserRef.current) {
+                    logAction('LOGIN', { email: currentUser.email });
+                    lastUserRef.current = currentUser.id;
+                    // Clean up previous subscription before setting up a new one
+                    profileSubscriptionRef.current?.unsubscribe();
+                    profileSubscriptionRef.current = null;
                 }
+                fetchAndSetProfile(currentUser);
+            } else {
+                // Logout
+                if (lastUserRef.current) {
+                    logAction('LOGOUT');
+                }
+                lastUserRef.current = null;
+                profileSubscriptionRef.current?.unsubscribe();
+                profileSubscriptionRef.current = null;
+                setUser(null);
+                setProfile(null);
                 setLoading(false);
             }
-        };
-
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            checkUserStatus(session?.user ?? null);
-        });
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            checkUserStatus(session?.user ?? null);
         });
 
         return () => {
             isMounted = false;
             subscription.unsubscribe();
-            if (profileSubscription) profileSubscription.unsubscribe();
+            profileSubscriptionRef.current?.unsubscribe();
         };
     }, []);
 

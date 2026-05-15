@@ -157,7 +157,6 @@ export const RestockTool = () => {
     };
 
     const handleCalculate = () => setCalculated(true);
-
     const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -179,7 +178,7 @@ export const RestockTool = () => {
 
                 const code = parts[0].trim().replace(/^\uFEFF/, '');
                 const qtyStr = parts[1].trim();
-                
+
                 if (!code || isNaN(parseInt(qtyStr))) return;
 
                 const qty = parseInt(qtyStr);
@@ -187,11 +186,20 @@ export const RestockTool = () => {
                 const rowIndex = newRows.findIndex(r => r.product.barcode === code);
 
                 if (rowIndex !== -1) {
-                    newRows[rowIndex] = {
-                        ...newRows[rowIndex],
-                        current_stock: qty,
-                        dispatch_qty: Math.max(0, newRows[rowIndex].base_stock - qty)
-                    };
+                    if (isEventSelected) {
+                        // En modo evento: el CSV carga directamente la cantidad a solicitar
+                        newRows[rowIndex] = {
+                            ...newRows[rowIndex],
+                            dispatch_qty: Math.max(0, qty)
+                        };
+                    } else {
+                        // En modo tienda: el CSV carga la existencia real
+                        newRows[rowIndex] = {
+                            ...newRows[rowIndex],
+                            current_stock: qty,
+                            dispatch_qty: Math.max(0, newRows[rowIndex].base_stock - qty)
+                        };
+                    }
                     updatedCount++;
                 }
             });
@@ -202,7 +210,7 @@ export const RestockTool = () => {
                 setSuccessMessage(`✅ Se actualizaron ${updatedCount} productos desde el archivo.`);
                 setTimeout(() => setSuccessMessage(null), 5000);
             } else {
-                showAlert('No se encontraron coincidencias. Asegúrate de que los Códigos de Barras en el archivo coincijan con el catálogo y que el formato sea: código;cantidad o código,cantidad');
+                showAlert('No se encontraron coincidencias. Asegúrate de que los Códigos de Barras en el archivo coincidan con el catálogo y que el formato sea: código;cantidad o código,cantidad');
             }
             if (fileInputRef.current) fileInputRef.current.value = '';
         };
@@ -391,13 +399,22 @@ export const RestockTool = () => {
                             </>
                         )}
                         {!isConsulta && isEventSelected && (
-                            <button
-                                onClick={handleCalculate}
-                                className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-skin-accent hover:bg-pink-700 text-white rounded-lg font-medium shadow-sm shadow-skin-accent/30 transition-all"
-                            >
-                                <Calculator size={15} />
-                                Continuar Orden
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="flex items-center gap-1.5 px-4 py-1.5 text-sm border border-slate-300 text-slate-700 rounded-lg hover:bg-white font-medium transition-all"
+                                >
+                                    <Upload size={15} />
+                                    Carga Masiva
+                                </button>
+                                <button
+                                    onClick={handleCalculate}
+                                    className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-skin-accent hover:bg-pink-700 text-white rounded-lg font-medium shadow-sm shadow-skin-accent/30 transition-all"
+                                >
+                                    <Calculator size={15} />
+                                    Continuar Orden
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>

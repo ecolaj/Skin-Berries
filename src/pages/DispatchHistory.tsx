@@ -408,7 +408,10 @@ export const DispatchHistory = () => {
                                         <Loader2 className="animate-spin mb-4" size={32} />
                                         <p>Generando formato oficial...</p>
                                     </div>
-                                ) : (
+                                ) : (() => {
+                                    const previewStoreType = stores.find(s => s.id === previewOrder.store_id)?.type ?? 'store';
+                                    const isEventDispatch = previewStoreType === 'event';
+                                    return (
                                     <div className="flex flex-col h-full">
                                         
                                         {/* DOCUMENT HEADER */}
@@ -461,7 +464,17 @@ export const DispatchHistory = () => {
                                                     <Store size={18} className="text-slate-400" />
                                                     {previewOrder.stores?.name}
                                                 </p>
-                                                <p className="text-slate-500 text-sm mt-0.5">Autorizado para transporte seguro.</p>
+                                                <p className="text-slate-500 text-sm mt-0.5">
+                                                    {isEventDispatch ? (
+                                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-violet-600 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5">
+                                                            <Calendar size={10} /> Evento
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-sky-600 bg-sky-50 border border-sky-200 rounded-full px-2 py-0.5">
+                                                            <Store size={10} /> Tienda
+                                                        </span>
+                                                    )}
+                                                </p>
                                             </div>
                                         </div>
 
@@ -473,8 +486,16 @@ export const DispatchHistory = () => {
                                                     <tr>
                                                         <th className="px-4 py-3 border-b border-slate-300 w-16 text-center">No.</th>
                                                         <th className="px-4 py-3 border-b border-slate-300">Descripción del Producto</th>
-                                                        <th className="px-4 py-3 border-b border-slate-300 font-mono">CÓDIGO / SKU</th>
-                                                        <th className="px-4 py-3 border-b border-slate-300 text-center w-32 border-l border-slate-300 bg-slate-200">CANTIDAD</th>
+                                                        {!isEventDispatch && (
+                                                            <th className="px-4 py-3 border-b border-slate-300 font-mono">CÓDIGO / SKU</th>
+                                                        )}
+                                                        <th className="px-4 py-3 border-b border-slate-300 text-center w-28 border-l border-slate-300 bg-slate-200">CANTIDAD</th>
+                                                        {isEventDispatch && (
+                                                            <>
+                                                                <th className="px-4 py-3 border-b border-slate-300 text-center w-24 border-l border-slate-300">ENTRADA</th>
+                                                                <th className="px-4 py-3 border-b border-slate-300 text-center w-24 border-l border-slate-300">VENTA</th>
+                                                            </>
+                                                        )}
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-dashed divide-slate-300">
@@ -482,22 +503,36 @@ export const DispatchHistory = () => {
                                                         <tr key={item.id}>
                                                             <td className="px-4 py-3 text-center font-mono text-xs text-slate-400">{(index + 1).toString().padStart(2, '0')}</td>
                                                             <td className="px-4 py-3 font-medium">{item.products?.name}</td>
-                                                            <td className="px-4 py-3 font-mono text-xs">{item.products?.sku}</td>
+                                                            {!isEventDispatch && (
+                                                                <td className="px-4 py-3 font-mono text-xs">{item.products?.sku}</td>
+                                                            )}
                                                             <td className="px-4 py-3 text-center font-bold text-lg border-l border-slate-300 bg-slate-50/50">
                                                                 {item.dispatch_qty}
                                                             </td>
+                                                            {isEventDispatch && (
+                                                                <>
+                                                                    <td className="px-4 py-3 border-l border-slate-300"></td>
+                                                                    <td className="px-4 py-3 border-l border-slate-300"></td>
+                                                                </>
+                                                            )}
                                                         </tr>
                                                     ))}
                                                     {previewItems.length === 0 && (
-                                                        <tr><td colSpan={4} className="p-8 text-center text-slate-400 italic">No hay productos en esta orden.</td></tr>
+                                                        <tr><td colSpan={isEventDispatch ? 5 : 4} className="p-8 text-center text-slate-400 italic">No hay productos en esta orden.</td></tr>
                                                     )}
                                                 </tbody>
                                                 <tfoot className="border-t-2 border-slate-800 bg-slate-50">
                                                     <tr>
-                                                        <td colSpan={3} className="px-4 py-3 text-right font-bold uppercase text-xs">Total de Unidades a Despachar:</td>
+                                                        <td colSpan={isEventDispatch ? 2 : 3} className="px-4 py-3 text-right font-bold uppercase text-xs">Total de Unidades a Despachar:</td>
                                                         <td className="px-4 py-3 text-center font-black text-xl border-l border-slate-300">
                                                             {previewItems.reduce((acc, curr) => acc + curr.dispatch_qty, 0)}
                                                         </td>
+                                                        {isEventDispatch && (
+                                                            <>
+                                                                <td className="px-4 py-3 border-l border-slate-300"></td>
+                                                                <td className="px-4 py-3 border-l border-slate-300"></td>
+                                                            </>
+                                                        )}
                                                     </tr>
                                                 </tfoot>
                                             </table>
@@ -530,7 +565,8 @@ export const DispatchHistory = () => {
                                             El receptor certifica la recepción íntegra de los artículos listados en este comprobante.
                                         </div>
                                     </div>
-                                )}
+                                    );
+                                })()}
                             </div>
                         </div>
                     </div>
