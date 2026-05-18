@@ -393,7 +393,6 @@ export const DispatchHistory = () => {
                     <table className="w-full text-left text-sm text-slate-600 relative">
                         <thead className="text-xs uppercase bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <th className="px-6 py-4">No. Despacho</th>
                                 <th className="px-6 py-4">ID Orden</th>
                                 <th className="px-6 py-4">Fecha de Generación</th>
                                 <th className="px-6 py-4">Destino (Tienda)</th>
@@ -404,23 +403,20 @@ export const DispatchHistory = () => {
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-10 text-center text-slate-400">
+                                    <td colSpan={5} className="px-6 py-10 text-center text-slate-400">
                                         <Loader2 className="animate-spin inline-block mb-2" size={24} />
                                         <p>Cargando historial...</p>
                                     </td>
                                 </tr>
                             ) : filteredOrders.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-10 text-center text-slate-400">
+                                    <td colSpan={5} className="px-6 py-10 text-center text-slate-400">
                                         {selectedStore === 'all' ? 'No hay órdenes generadas aún.' : 'No hay órdenes para esta tienda.'}
                                     </td>
                                 </tr>
                             ) : filteredOrders.map((order) => (
                                 <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-6 py-4 font-mono font-bold text-slate-900 border-l-[3px] border-transparent hover:border-skin-accent">
-                                        #{order.order_number ? String(order.order_number).padStart(5, '0') : '—'}
-                                    </td>
-                                    <td className="px-6 py-4 font-mono text-slate-500 text-xs">
+                                    <td className="px-6 py-4 font-mono font-medium text-slate-900 border-l-[3px] border-transparent hover:border-skin-accent">
                                         #{order.id.split('-')[0].toUpperCase()}
                                     </td>
                                     <td className="px-6 py-4">
@@ -591,7 +587,7 @@ export const DispatchHistory = () => {
                                             <div className="text-right">
                                                 <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Nº Documento</p>
                                                 <p className="text-xl font-mono font-black text-rose-600">
-                                                    #{previewOrder.order_number ? String(previewOrder.order_number).padStart(5, '0') : previewOrder.id.split('-')[0].toUpperCase()}
+                                                    #{previewOrder.id.split('-')[0].toUpperCase()}
                                                 </p>
                                                 {previewOrder.status === 'anulada' && (
                                                     <div className="bg-red-600 text-white px-2 py-0.5 rounded text-[10px] font-bold mt-1 uppercase text-center">ANULADA</div>
