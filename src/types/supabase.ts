@@ -25,6 +25,7 @@ export type Database = {
           id: string
           order_id: string
           product_id: string
+          id_orden: string | null
         }
         Insert: {
           base_stock: number
@@ -36,6 +37,7 @@ export type Database = {
           id?: string
           order_id: string
           product_id: string
+          id_orden?: string | null
         }
         Update: {
           base_stock?: number
@@ -47,6 +49,7 @@ export type Database = {
           id?: string
           order_id?: string
           product_id?: string
+          id_orden?: string | null
         }
         Relationships: [
           {
@@ -77,7 +80,7 @@ export type Database = {
           manager_id: string | null
           status: Database["public"]["Enums"]["dispatch_status"]
           store_id: string
-          order_number: number
+          id_orden: string
         }
         Insert: {
           created_at?: string
@@ -90,7 +93,7 @@ export type Database = {
           manager_id?: string | null
           status?: Database["public"]["Enums"]["dispatch_status"]
           store_id: string
-          order_number?: number
+          id_orden?: string
         }
         Update: {
           created_at?: string
@@ -103,7 +106,7 @@ export type Database = {
           manager_id?: string | null
           status?: Database["public"]["Enums"]["dispatch_status"]
           store_id?: string
-          order_number?: number
+          id_orden?: string
         }
         Relationships: [
           {
@@ -370,7 +373,7 @@ export type Database = {
           manager_id: string | null
           status: Database["public"]["Enums"]["dispatch_status"]
           store_id: string
-          order_number: number
+          id_orden: string
           profiles: { full_name: string | null } | null
           stores: { id: string; name: string; type: Database["public"]["Enums"]["store_type"] } | null
         }
