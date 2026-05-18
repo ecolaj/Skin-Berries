@@ -31,6 +31,10 @@ export const RestockTool = () => {
     const [calculated, setCalculated] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     
+    // Reviewers for Event workflow
+    const [reviewers, setReviewers] = useState<{ id: string, full_name: string | null, email: string | null }[]>([]);
+    const [selectedReviewerId, setSelectedReviewerId] = useState<string>('');
+    
     // Auth & Permissions
     const { user, profile } = useAuth();
     const userRole = profile?.role || null;
@@ -46,6 +50,19 @@ export const RestockTool = () => {
 
     // Load stores and products
     useEffect(() => {
+        const fetchReviewers = async () => {
+            const { data } = await supabase
+                .from('profiles')
+                .select('id, full_name, email, role')
+                .eq('is_active', true)
+                .neq('role', 'admin');
+            if (data) {
+                const filtered = data.filter(r => r.id !== user?.id);
+                setReviewers(filtered);
+            }
+        };
+        fetchReviewers();
+
         const fetchStores = async () => {
             const { data } = await supabase.from('stores').select('*').in('type', ['store', 'event']).eq('is_active', true).order('name');
             
@@ -64,7 +81,7 @@ export const RestockTool = () => {
         supabase.from('products').select('*').eq('is_active', true).order('name').then(({ data }) => {
             if (data) setAllProducts(data);
         });
-    }, [profile]);
+    }, [profile, user]);
 
     // Load inventory for selected store
     const loadInventory = useCallback(async () => {
@@ -222,14 +239,20 @@ export const RestockTool = () => {
 
     const handleGenerateOrder = async () => {
         if (!selectedStoreId || dispatchRows.length === 0) return;
+        if (isEventSelected && !selectedReviewerId) {
+            showAlert('Debes seleccionar a un Revisor para enviar esta solicitud.');
+            return;
+        }
+
         setGeneratingOrder(true);
 
         const { data: orderData, error: orderError } = await supabase
             .from('dispatch_orders')
             .insert([{ 
                 store_id: selectedStoreId, 
-                status: 'pendiente',
-                created_by: user?.id 
+                status: isEventSelected ? 'revision_pendiente' : 'pendiente',
+                created_by: user?.id,
+                reviewer_id: isEventSelected ? selectedReviewerId : null
             }])
             .select()
             .single();
@@ -246,6 +269,7 @@ export const RestockTool = () => {
             base_stock: r.base_stock,
             current_stock: r.current_stock,
             dispatch_qty: r.dispatch_qty,
+            requested_qty: isEventSelected ? r.dispatch_qty : null,
         }));
 
         const { error: itemsError } = await supabase.from('dispatch_order_items').insert(items);
@@ -254,8 +278,25 @@ export const RestockTool = () => {
         if (itemsError) {
             showAlert('Error al guardar items: ' + itemsError.message);
         } else {
-            setSuccessMessage(`✅ Orden de despacho #${orderData.id.substring(0, 8).toUpperCase()} creada exitosamente.`);
+            if (isEventSelected) {
+                // Notificar al revisor
+                const storeName = stores.find(s => s.id === selectedStoreId)?.name || 'Evento';
+                await supabase.from('notifications').insert([{
+                    user_id: selectedReviewerId,
+                    sender_id: user?.id,
+                    title: 'Solicitud de Evento Pendiente de Revisión',
+                    message: `${profile?.full_name || user?.email} ha solicitado productos para el evento "${storeName}". Por favor revisa la solicitud.`,
+                    link: `/dispatch-history?orderId=${orderData.id}`
+                }]);
+                setSuccessMessage(`✅ Solicitud de evento enviada a revisión exitosamente.`);
+            } else {
+                setSuccessMessage(`✅ Orden de despacho #${orderData.id.substring(0, 8).toUpperCase()} creada exitosamente.`);
+            }
             setTimeout(() => setSuccessMessage(null), 5000);
+            
+            // Clear selections
+            setCalculated(false);
+            setSelectedReviewerId('');
         }
     };
 
@@ -337,13 +378,28 @@ export const RestockTool = () => {
                             <p className="text-2xl font-bold text-slate-900">{totalDispatch}</p>
                         </div>
                     </div>
+                    {isEventSelected && (
+                        <div className="bg-skin-card border border-skin-rose/20 rounded-2xl p-5 flex flex-col justify-center gap-2">
+                            <label className="text-sm text-slate-500 font-medium">Asignar Revisor</label>
+                            <select
+                                value={selectedReviewerId}
+                                onChange={(e) => setSelectedReviewerId(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-sm outline-none focus:border-skin-accent transition-colors"
+                            >
+                                <option value="">Selecciona un revisor...</option>
+                                {reviewers.map(r => (
+                                    <option key={r.id} value={r.id}>{r.full_name || r.email}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                     <button
                         onClick={handleGenerateOrder}
-                        disabled={generatingOrder || dispatchRows.length === 0 || isConsulta}
+                        disabled={generatingOrder || dispatchRows.length === 0 || isConsulta || (isEventSelected && !selectedReviewerId)}
                         className="bg-slate-900 hover:bg-slate-800 text-white rounded-2xl p-5 flex items-center justify-center gap-3 font-semibold shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                         {generatingOrder ? <Loader2 className="animate-spin" size={20} /> : <FileDown size={20} />}
-                        {isConsulta ? 'Solo Consulta' : 'Generar Orden de Despacho'}
+                        {isConsulta ? 'Solo Consulta' : (isEventSelected ? 'Someter a Revisión' : 'Generar Orden de Despacho')}
                     </button>
                 </div>
             )}

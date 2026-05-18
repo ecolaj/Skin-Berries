@@ -212,7 +212,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                                         Nivel de Acceso (Lectura)
                                     </label>
                                     <div className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 font-medium cursor-not-allowed uppercase text-xs flex items-center">
-                                        {profile?.role === 'master' ? 'Master (Acceso Total)' : profile?.role === 'operador' ? 'Operador de Sistema' : 'Consulta e Historial'}
+                                        {profile?.role === 'master' ? 'Master (Acceso Total)' : profile?.role === 'gerente' ? 'Gerente General' : profile?.role === 'operador' ? 'Operador de Sistema' : 'Consulta e Historial'}
                                     </div>
                                 </div>
                             </div>

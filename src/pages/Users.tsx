@@ -279,14 +279,14 @@ export const Users = () => {
                                                 <div>
                                                     <span className="font-medium text-slate-800 block group-hover:text-skin-accent transition-colors">{profile.full_name || 'Sin Nombre'}</span>
                                                     <span className="text-xs text-slate-400 font-medium block mt-0.5 uppercase tracking-wider">
-                                                        {profile.job_title || (profile.role === 'master' ? 'Master' : profile.role === 'operador' ? 'Operador' : 'Consulta')}
+                                                        {profile.job_title || (profile.role === 'master' ? 'Master' : profile.role === 'gerente' ? 'Gerente' : profile.role === 'operador' ? 'Operador' : 'Consulta')}
                                                     </span>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
-                                                {profile.role === 'master' ? <ShieldAlert size={16} className="text-skin-accent" /> : profile.role === 'operador' ? <UserCog size={16} className="text-indigo-400" /> : <Box size={16} className="text-slate-300" />}
+                                                {profile.role === 'master' ? <ShieldAlert size={16} className="text-skin-accent" /> : profile.role === 'gerente' ? <UserCog size={16} className="text-purple-500" /> : profile.role === 'operador' ? <UserCog size={16} className="text-indigo-400" /> : <Box size={16} className="text-slate-300" />}
                                                 <select
                                                     value={profile.role}
                                                     onChange={(e) => handleUpdateRole(profile.id, e.target.value as NonNullable<Profile['role']>)}
@@ -298,6 +298,7 @@ export const Users = () => {
                                                     <option value="store_manager">Encargado</option>
                                                     <option value="mercadeo">Mercadeo</option>
                                                     <option value="ventas">Ventas</option>
+                                                    <option value="gerente">Gerente</option>
                                                     <option value="admin">Administrador</option>
                                                     <option value="master">Master</option>
                                                 </select>

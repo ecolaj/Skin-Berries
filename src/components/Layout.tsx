@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { ProfileModal } from './ProfileModal';
 import { ConfirmModal } from './ConfirmModal';
 import { Store, Settings, LogOut, PackageSearch, LayoutDashboard, Users, Box, ChevronDown, Target, ClipboardList, Ticket, Menu, X, Activity } from 'lucide-react';
+import { NotificationBell } from './NotificationBell';
 
 import { logAction } from '../utils/logger';
 
@@ -55,16 +56,20 @@ export const Layout = () => {
 
     return (
         <div className="flex flex-col lg:flex-row h-screen bg-skin-bg print:h-auto print:bg-white overflow-hidden">
-            {/* Mobile Header */}
             <header className="lg:hidden flex items-center justify-between px-6 py-4 bg-skin-card border-b border-slate-200 sticky top-0 z-50 print:hidden shrink-0">
-                <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain" />
-                <button
-                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                    className="p-2 text-skin-accent hover:bg-skin-blush rounded-xl transition-all active:scale-95"
-                    aria-label="Toggle Menu"
-                >
-                    {isSidebarOpen ? <X size={28} /> : <Menu size={28} />}
-                </button>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className="p-2 -ml-2 text-skin-accent hover:bg-skin-blush rounded-xl transition-all active:scale-95"
+                        aria-label="Toggle Menu"
+                    >
+                        {isSidebarOpen ? <X size={28} /> : <Menu size={28} />}
+                    </button>
+                    <img src="/logo.png" alt="Logo" className="h-9 w-auto object-contain" />
+                </div>
+                <div className="flex items-center">
+                    <NotificationBell />
+                </div>
             </header>
 
             {/* Sidebar Backdrop (Mobile only) */}
@@ -168,7 +173,7 @@ export const Layout = () => {
                                 {profile?.full_name || user?.email}
                             </p>
                             <p className="text-xs text-slate-500 truncate font-medium">
-                                {profile?.job_title || (profile?.role === 'master' ? 'Master' : profile?.role === 'operador' ? 'Operador' : 'Consulta')}
+                                {profile?.job_title || (profile?.role === 'master' ? 'Master' : profile?.role === 'gerente' ? 'Gerente' : profile?.role === 'operador' ? 'Operador' : 'Consulta')}
                             </p>
                         </div>
                     </div>
@@ -183,8 +188,13 @@ export const Layout = () => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-auto print:overflow-visible relative">
-                <div className="p-4 md:p-8 max-w-7xl mx-auto print:p-0 print:max-w-none">
+            <main className="flex-1 overflow-auto print:overflow-visible relative flex flex-col">
+                {/* Desktop Header */}
+                <header className="hidden lg:flex items-center justify-end px-8 py-4 bg-skin-bg sticky top-0 z-40 print:hidden">
+                    <NotificationBell />
+                </header>
+                
+                <div className="p-4 md:px-8 md:pb-8 max-w-7xl mx-auto w-full print:p-0 print:max-w-none">
                     <Outlet />
                 </div>
             </main>

@@ -24,7 +24,7 @@ export const Events = () => {
     // Auth Role
     const { profile } = useAuth();
     const userRole = profile?.role || null;
-    const canManageEvents = ['master', 'admin', 'operador'].includes(userRole || '');
+    const canManageEvents = ['master', 'admin', 'gerente', 'operador'].includes(userRole || '');
 
     // Modales de confirmación y alerta
     const [confirmOpen, setConfirmOpen] = useState(false);

@@ -20,6 +20,8 @@ export type Database = {
           created_at: string
           current_stock: number
           dispatch_qty: number
+          requested_qty: number | null
+          reviewed_qty: number | null
           id: string
           order_id: string
           product_id: string
@@ -29,6 +31,8 @@ export type Database = {
           created_at?: string
           current_stock: number
           dispatch_qty: number
+          requested_qty?: number | null
+          reviewed_qty?: number | null
           id?: string
           order_id: string
           product_id: string
@@ -38,6 +42,8 @@ export type Database = {
           created_at?: string
           current_stock?: number
           dispatch_qty?: number
+          requested_qty?: number | null
+          reviewed_qty?: number | null
           id?: string
           order_id?: string
           product_id?: string
@@ -67,8 +73,11 @@ export type Database = {
           id: string
           notes: string | null
           received_at: string | null
+          reviewer_id: string | null
+          manager_id: string | null
           status: Database["public"]["Enums"]["dispatch_status"]
           store_id: string
+          order_number: number
         }
         Insert: {
           created_at?: string
@@ -77,8 +86,11 @@ export type Database = {
           id?: string
           notes?: string | null
           received_at?: string | null
+          reviewer_id?: string | null
+          manager_id?: string | null
           status?: Database["public"]["Enums"]["dispatch_status"]
           store_id: string
+          order_number?: number
         }
         Update: {
           created_at?: string
@@ -87,8 +99,11 @@ export type Database = {
           id?: string
           notes?: string | null
           received_at?: string | null
+          reviewer_id?: string | null
+          manager_id?: string | null
           status?: Database["public"]["Enums"]["dispatch_status"]
           store_id?: string
+          order_number?: number
         }
         Relationships: [
           {
@@ -293,15 +308,80 @@ export type Database = {
           }
         ]
       }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          sender_id: string | null
+          title: string
+          message: string
+          link: string | null
+          is_read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          sender_id?: string | null
+          title: string
+          message: string
+          link?: string | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          sender_id?: string | null
+          title?: string
+          message?: string
+          link?: string | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      dispatch_orders_view: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          dispatched_at: string | null
+          id: string
+          notes: string | null
+          received_at: string | null
+          reviewer_id: string | null
+          manager_id: string | null
+          status: Database["public"]["Enums"]["dispatch_status"]
+          store_id: string
+          order_number: number
+          profiles: { full_name: string | null } | null
+          stores: { id: string; name: string; type: Database["public"]["Enums"]["store_type"] } | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
     }
     Enums: {
-      dispatch_status: "pendiente" | "despachado" | "recibido" | "anulada"
+      dispatch_status: "pendiente" | "despachado" | "recibido" | "anulada" | "revision_pendiente" | "aprobacion_pendiente"
       store_type: "warehouse" | "store" | "event"
       user_role:
         | "admin"
@@ -311,6 +391,7 @@ export type Database = {
         | "consulta"
         | "mercadeo"
         | "ventas"
+        | "gerente"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -438,9 +519,9 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      dispatch_status: ["pendiente", "despachado", "recibido", "anulada"],
+      dispatch_status: ["pendiente", "despachado", "recibido", "anulada", "revision_pendiente", "aprobacion_pendiente"],
       store_type: ["warehouse", "store", "event"],
-      user_role: ["admin", "store_manager", "master", "operador", "consulta"],
+      user_role: ["admin", "store_manager", "master", "operador", "consulta", "mercadeo", "ventas", "gerente"],
     },
   },
 } as const

@@ -24,7 +24,7 @@ export const Stores = () => {
     // Auth Role
     const { profile } = useAuth();
     const userRole = profile?.role || null;
-    const canManageStores = ['master', 'admin', 'operador'].includes(userRole || '');
+    const canManageStores = ['master', 'admin', 'gerente', 'operador'].includes(userRole || '');
 
     // Modales de confirmación y alerta
     const [confirmOpen, setConfirmOpen] = useState(false);

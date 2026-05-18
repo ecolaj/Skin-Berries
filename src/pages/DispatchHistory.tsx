@@ -9,8 +9,8 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { ReasonModal } from '../components/ReasonModal';
 
 type DispatchOrder = Omit<Database['public']['Tables']['dispatch_orders']['Row'], 'status'> & {
-    status: 'pendiente' | 'despachado' | 'recibido' | 'anulada';
-    stores: { name: string, id: string } | null;
+    status: 'revision_pendiente' | 'aprobacion_pendiente' | 'pendiente' | 'despachado' | 'recibido' | 'anulada';
+    stores: { name: string, id: string, type: string } | null;
     profiles: { full_name: string | null } | null;
 };
 type DispatchItem = Database['public']['Tables']['dispatch_order_items']['Row'] & {
@@ -24,7 +24,7 @@ export const DispatchHistory = () => {
     const [loading, setLoading] = useState(true);
 
     // Auth & Permissions
-    const { profile } = useAuth();
+    const { user, profile } = useAuth();
     
     // Filters
     const [selectedStore, setSelectedStore] = useState<string>('all');
@@ -41,10 +41,17 @@ export const DispatchHistory = () => {
     const [previewOrder, setPreviewOrder] = useState<DispatchOrder | null>(null);
     const [previewItems, setPreviewItems] = useState<DispatchItem[]>([]);
     const [loadingPreview, setLoadingPreview] = useState(false);
+    const [editableItems, setEditableItems] = useState<Record<string, number>>({});
+    const [savingReview, setSavingReview] = useState(false);
+    
+    // For manager approval
+    const [managers, setManagers] = useState<{ id: string, full_name: string | null }[]>([]);
+    const [selectedManagerId, setSelectedManagerId] = useState<string>('');
 
     // Alerts
     const [alertOpen, setAlertOpen] = useState(false);
     const [alertMessage, setAlertMessage] = useState('');
+    const [alertType, setAlertType] = useState<'success' | 'error'>('error');
     const [confirmModal, setConfirmModal] = useState<{ open: boolean, orderId: string | null }>({
         open: false,
         orderId: null
@@ -54,7 +61,11 @@ export const DispatchHistory = () => {
         orderId: null
     });
 
-    const showAlert = (msg: string) => { setAlertMessage(msg); setAlertOpen(true); };
+    const showAlert = (msg: string, type: 'success' | 'error' = 'error') => { 
+        setAlertType(type);
+        setAlertMessage(msg); 
+        setAlertOpen(true); 
+    };
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -77,12 +88,8 @@ export const DispatchHistory = () => {
         }
 
         const { data: ordersData, error } = await supabase
-            .from('dispatch_orders')
-            .select(`
-                *,
-                stores ( id, name ),
-                profiles ( full_name )
-            `)
+            .from('dispatch_orders_view')
+            .select('*')
             .in('store_id', allowedStoreIds)
             .order('created_at', { ascending: false });
 
@@ -97,6 +104,11 @@ export const DispatchHistory = () => {
 
     useEffect(() => {
         if (profile) fetchData();
+        const fetchUsers = async () => {
+            const { data } = await supabase.from('profiles').select('id, full_name').eq('is_active', true);
+            if (data) setManagers(data);
+        };
+        fetchUsers();
 
         // Suscripción en tiempo real para cambios en órdenes
         const channel = supabase
@@ -114,6 +126,23 @@ export const DispatchHistory = () => {
         };
     }, [profile, fetchData]);
 
+    // Auto open preview modal if orderId parameter is present in URL
+    useEffect(() => {
+        if (orders.length > 0) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryOrderId = urlParams.get('orderId');
+            if (queryOrderId) {
+                const targetOrder = orders.find(o => o.id === queryOrderId);
+                if (targetOrder) {
+                    handleOpenPreview(targetOrder);
+                    // Clear the parameter from the URL to prevent reopening on reload
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, '', newUrl);
+                }
+            }
+        }
+    }, [orders]);
+
     const handleOpenPreview = async (order: DispatchOrder) => {
         setPreviewOrder(order);
         setLoadingPreview(true);
@@ -128,9 +157,103 @@ export const DispatchHistory = () => {
         if (error) {
             showAlert('Error al cargar items: ' + error.message);
         } else if (data) {
-            setPreviewItems(data as unknown as DispatchItem[]);
+            const items = data as unknown as DispatchItem[];
+            setPreviewItems(items);
+            
+            // Initialize editable amounts based on current state
+            const initialEdits: Record<string, number> = {};
+            items.forEach(item => {
+                if (order.status === 'revision_pendiente') {
+                    initialEdits[item.id] = item.reviewed_qty ?? item.requested_qty ?? item.dispatch_qty ?? 0;
+                } else if (order.status === 'aprobacion_pendiente') {
+                    initialEdits[item.id] = item.reviewed_qty ?? item.requested_qty ?? item.dispatch_qty ?? 0;
+                }
+            });
+            setEditableItems(initialEdits);
+            setSelectedManagerId('');
         }
         setLoadingPreview(false);
+    };
+
+    const handleSaveReview = async () => {
+        if (!previewOrder) return;
+        if (previewOrder.status === 'revision_pendiente' && !selectedManagerId && managers.length > 0) {
+            showAlert('Debes seleccionar un usuario para enviar la revisión.');
+            return;
+        }
+        
+        setSavingReview(true);
+        try {
+            // Actualizar items
+            const promises = previewItems.map(item => {
+                const updatedQty = editableItems[item.id];
+                const updatePayload = previewOrder.status === 'revision_pendiente' 
+                    ? { reviewed_qty: updatedQty } 
+                    : { dispatch_qty: updatedQty }; // Aprobacion pendiente
+                
+                return supabase.from('dispatch_order_items').update(updatePayload).eq('id', item.id);
+            });
+            
+            await Promise.all(promises);
+            
+            // Actualizar orden
+            const newStatus = previewOrder.status === 'revision_pendiente' ? 'aprobacion_pendiente' : 'pendiente';
+            const orderPayload: any = { status: newStatus };
+            if (previewOrder.status === 'revision_pendiente') {
+                // assign manager_id or null if there is no selection but there is only 1 manager maybe, but for now we require selection
+                orderPayload.manager_id = selectedManagerId || (managers.length === 1 ? managers[0].id : null);
+            }
+            
+            await supabase.from('dispatch_orders').update(orderPayload).eq('id', previewOrder.id);
+            
+            // Notificar
+            if (previewOrder.status === 'revision_pendiente' && orderPayload.manager_id) {
+                await supabase.from('notifications').insert([{
+                    user_id: orderPayload.manager_id as string,
+                    sender_id: user?.id,
+                    title: 'Aprobación Pendiente',
+                    message: `La solicitud de evento para "${previewOrder.stores?.name}" ha sido revisada y espera tu aprobación.`,
+                    link: `/dispatch-history?orderId=${previewOrder.id}`
+                }]);
+            } else if (previewOrder.status === 'aprobacion_pendiente' && previewOrder.created_by) {
+                // Notificar al creador de que fue aprobada
+                await supabase.from('notifications').insert([{
+                    user_id: previewOrder.created_by,
+                    sender_id: user?.id,
+                    title: 'Solicitud Aprobada',
+                    message: `Tu solicitud de evento para "${previewOrder.stores?.name}" ha sido autorizada. La orden está ahora pendiente de despacho.`,
+                    link: `/dispatch-history?orderId=${previewOrder.id}`
+                }]);
+            }
+
+            // Borrar la notificación del usuario actual sobre esta orden (por ID en enlace)
+            await supabase
+                .from('notifications')
+                .delete()
+                .eq('user_id', user?.id || '')
+                .ilike('link', `%orderId=${previewOrder.id}%`);
+
+            // Borrar notificaciones antiguas sin ID en enlace (legado)
+            if (previewOrder.stores?.name) {
+                await supabase
+                    .from('notifications')
+                    .delete()
+                    .eq('user_id', user?.id || '')
+                    .eq('link', '/dispatch-history')
+                    .ilike('message', `%${previewOrder.stores.name}%`);
+            }
+
+            // Disparar evento para actualizar la campana instantáneamente
+            window.dispatchEvent(new Event('notifications_updated'));
+
+            setPreviewOrder(null);
+            showAlert('Revisión guardada y enviada correctamente.', 'success');
+            fetchData();
+        } catch (err: any) {
+            showAlert('Error al procesar: ' + err.message);
+        } finally {
+            setSavingReview(false);
+        }
     };
 
     const handleUpdateStatus = async (orderId: string, newStatus: string, reason?: string) => {
@@ -149,6 +272,30 @@ export const DispatchHistory = () => {
         if (error) {
             showAlert('Error al actualizar estado: ' + error.message);
         } else {
+            // Buscar la orden correspondiente para obtener el nombre de la tienda
+            const targetOrder = orders.find(o => o.id === orderId);
+            if (targetOrder) {
+                // Borrar la notificación del usuario actual sobre esta orden (por ID en enlace)
+                await supabase
+                    .from('notifications')
+                    .delete()
+                    .eq('user_id', user?.id || '')
+                    .ilike('link', `%orderId=${orderId}%`);
+
+                // Borrar notificaciones antiguas sin ID en enlace (legado)
+                if (targetOrder.stores?.name) {
+                    await supabase
+                        .from('notifications')
+                        .delete()
+                        .eq('user_id', user?.id || '')
+                        .eq('link', '/dispatch-history')
+                        .ilike('message', `%${targetOrder.stores.name}%`);
+                }
+            }
+
+            // Disparar evento para actualizar la campana instantáneamente
+            window.dispatchEvent(new Event('notifications_updated'));
+
             // Actualizar localmente
             setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updateData } : o));
         }
@@ -246,6 +393,7 @@ export const DispatchHistory = () => {
                     <table className="w-full text-left text-sm text-slate-600 relative">
                         <thead className="text-xs uppercase bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 sticky top-0 z-10 shadow-sm">
                             <tr>
+                                <th className="px-6 py-4">No. Despacho</th>
                                 <th className="px-6 py-4">ID Orden</th>
                                 <th className="px-6 py-4">Fecha de Generación</th>
                                 <th className="px-6 py-4">Destino (Tienda)</th>
@@ -256,20 +404,23 @@ export const DispatchHistory = () => {
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-10 text-center text-slate-400">
+                                    <td colSpan={6} className="px-6 py-10 text-center text-slate-400">
                                         <Loader2 className="animate-spin inline-block mb-2" size={24} />
                                         <p>Cargando historial...</p>
                                     </td>
                                 </tr>
                             ) : filteredOrders.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-10 text-center text-slate-400">
+                                    <td colSpan={6} className="px-6 py-10 text-center text-slate-400">
                                         {selectedStore === 'all' ? 'No hay órdenes generadas aún.' : 'No hay órdenes para esta tienda.'}
                                     </td>
                                 </tr>
                             ) : filteredOrders.map((order) => (
                                 <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-6 py-4 font-mono font-medium text-slate-900 border-l-[3px] border-transparent hover:border-skin-accent">
+                                    <td className="px-6 py-4 font-mono font-bold text-slate-900 border-l-[3px] border-transparent hover:border-skin-accent">
+                                        #{order.order_number ? String(order.order_number).padStart(5, '0') : '—'}
+                                    </td>
+                                    <td className="px-6 py-4 font-mono text-slate-500 text-xs">
                                         #{order.id.split('-')[0].toUpperCase()}
                                     </td>
                                     <td className="px-6 py-4">
@@ -287,13 +438,17 @@ export const DispatchHistory = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center justify-start gap-1">
-                                            {/* PENDIENTE - Hito inicial */}
+                                            {/* PENDIENTE - Hito inicial o Revisiones */}
                                             <div className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all truncate ${
-                                                order.status === 'pendiente' 
+                                                order.status === 'revision_pendiente' 
+                                                ? 'bg-purple-50 border-purple-200 text-purple-600 shadow-sm'
+                                                : order.status === 'aprobacion_pendiente'
+                                                ? 'bg-orange-50 border-orange-200 text-orange-600 shadow-sm'
+                                                : order.status === 'pendiente' 
                                                 ? 'bg-amber-50 border-amber-200 text-amber-600 shadow-sm' 
                                                 : 'bg-slate-50 border-slate-100 text-slate-400 opacity-40'
                                             }`}>
-                                                PEND.
+                                                {order.status === 'revision_pendiente' ? 'REVISIÓN' : order.status === 'aprobacion_pendiente' ? 'APROBACIÓN' : 'PEND.'}
                                             </div>
                                             
                                             <div className="w-1.5 h-px bg-slate-200 shrink-0"></div>
@@ -358,10 +513,12 @@ export const DispatchHistory = () => {
                                                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
                                                     ${order.status === 'anulada' 
                                                         ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' 
+                                                        : (order.status === 'revision_pendiente' || order.status === 'aprobacion_pendiente') && ((user?.id === order.reviewer_id) || profile?.role === 'gerente')
+                                                        ? 'bg-purple-100 text-purple-700 hover:bg-purple-200 ring-1 ring-purple-300'
                                                         : 'bg-skin-blush text-skin-accent hover:bg-pink-100'}`}
                                             >
                                                 <FileText size={16} />
-                                                Ver Formato
+                                                {(order.status === 'revision_pendiente' || order.status === 'aprobacion_pendiente') ? 'Revisar' : 'Ver Formato'}
                                             </button>
                                         </div>
                                     </td>
@@ -379,17 +536,25 @@ export const DispatchHistory = () => {
                         {/* Modal Header */}
                         <div className="shrink-0 p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 print:hidden">
                             <div>
-                                <h3 className="text-lg font-bold text-slate-800">Formato de Despacho</h3>
-                                <p className="text-xs text-slate-500">Vista previa lista para generar PDF / Imprimir.</p>
+                                <h3 className="text-lg font-bold text-slate-800">
+                                    {(previewOrder.status === 'revision_pendiente' || previewOrder.status === 'aprobacion_pendiente') ? 'Revisión de Orden' : 'Formato de Despacho'}
+                                </h3>
+                                <p className="text-xs text-slate-500">
+                                    {(previewOrder.status === 'revision_pendiente' || previewOrder.status === 'aprobacion_pendiente') 
+                                        ? 'Verifica y ajusta las cantidades antes de continuar el flujo.' 
+                                        : 'Vista previa lista para generar PDF / Imprimir.'}
+                                </p>
                             </div>
                             <div className="flex items-center gap-3">
-                                <button 
-                                    onClick={handlePrint}
-                                    className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-medium shadow-md transition-all"
-                                >
-                                    <Printer size={16} />
-                                    Descargar / Imprimir
-                                </button>
+                                {!(previewOrder.status === 'revision_pendiente' || previewOrder.status === 'aprobacion_pendiente') && (
+                                    <button 
+                                        onClick={handlePrint}
+                                        className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-medium shadow-md transition-all"
+                                    >
+                                        <Printer size={16} />
+                                        Descargar / Imprimir
+                                    </button>
+                                )}
                                 <button 
                                     onClick={() => { setPreviewOrder(null); setPreviewItems([]); }}
                                     className="p-2 rounded-full hover:bg-slate-200 text-slate-500 transition-colors"
@@ -426,7 +591,7 @@ export const DispatchHistory = () => {
                                             <div className="text-right">
                                                 <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Nº Documento</p>
                                                 <p className="text-xl font-mono font-black text-rose-600">
-                                                    #{previewOrder.id.split('-')[0].toUpperCase()}
+                                                    #{previewOrder.order_number ? String(previewOrder.order_number).padStart(5, '0') : previewOrder.id.split('-')[0].toUpperCase()}
                                                 </p>
                                                 {previewOrder.status === 'anulada' && (
                                                     <div className="bg-red-600 text-white px-2 py-0.5 rounded text-[10px] font-bold mt-1 uppercase text-center">ANULADA</div>
@@ -489,8 +654,19 @@ export const DispatchHistory = () => {
                                                         {!isEventDispatch && (
                                                             <th className="px-4 py-3 border-b border-slate-300 font-mono">CÓDIGO / SKU</th>
                                                         )}
-                                                        <th className="px-4 py-3 border-b border-slate-300 text-center w-28 border-l border-slate-300 bg-slate-200">CANTIDAD</th>
-                                                        {isEventDispatch && (
+                                                        {isEventDispatch && (previewOrder.status === 'revision_pendiente' || previewOrder.status === 'aprobacion_pendiente') ? (
+                                                            <>
+                                                                <th className="px-4 py-3 border-b border-slate-300 text-center w-28 border-l border-slate-300">SOLICITADO</th>
+                                                                <th className="px-4 py-3 border-b border-slate-300 text-center w-28 border-l border-slate-300">REVISADO</th>
+                                                                {previewOrder.status === 'aprobacion_pendiente' && (
+                                                                    <th className="px-4 py-3 border-b border-slate-300 text-center w-28 border-l border-slate-300">APROBADO</th>
+                                                                )}
+                                                            </>
+                                                        ) : (
+                                                            <th className="px-4 py-3 border-b border-slate-300 text-center w-28 border-l border-slate-300 bg-slate-200">CANTIDAD</th>
+                                                        )}
+                                                        
+                                                        {isEventDispatch && !(previewOrder.status === 'revision_pendiente' || previewOrder.status === 'aprobacion_pendiente') && (
                                                             <>
                                                                 <th className="px-4 py-3 border-b border-slate-300 text-center w-24 border-l border-slate-300">ENTRADA</th>
                                                                 <th className="px-4 py-3 border-b border-slate-300 text-center w-24 border-l border-slate-300">VENTA</th>
@@ -499,15 +675,78 @@ export const DispatchHistory = () => {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-dashed divide-slate-300">
-                                                    {previewItems.map((item, index) => (
+                                                    {previewItems.map((item, index) => {
+                                                        const isReviewerMode = previewOrder.status === 'revision_pendiente' && user?.id === previewOrder.reviewer_id;
+                                                        const isManagerMode = previewOrder.status === 'aprobacion_pendiente' && profile?.role === 'gerente';
+                                                        
+                                                        return (
                                                         <tr key={item.id}>
                                                             <td className="px-4 py-3 text-center font-mono text-xs text-slate-400">{(index + 1).toString().padStart(2, '0')}</td>
                                                             <td className="px-4 py-3 font-medium">{item.products?.name}</td>
                                                             {!isEventDispatch && (
                                                                 <td className="px-4 py-3 font-mono text-xs">{item.products?.sku}</td>
                                                             )}
-                                                            <td className="px-4 py-3 text-center font-bold text-lg border-l border-slate-300 bg-slate-50/50">
-                                                                {item.dispatch_qty}
+                                                            
+                                                            {isEventDispatch && (previewOrder.status === 'revision_pendiente' || previewOrder.status === 'aprobacion_pendiente') ? (
+                                                                <>
+                                                                    <td className="px-4 py-3 text-center font-bold text-lg border-l border-slate-300 text-slate-500">
+                                                                        {item.requested_qty}
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-center font-bold text-lg border-l border-slate-300">
+                                                                        {isReviewerMode ? (
+                                                                            <input 
+                                                                                type="number"
+                                                                                min={0}
+                                                                                value={editableItems[item.id] ?? ''}
+                                                                                onChange={(e) => setEditableItems({...editableItems, [item.id]: parseInt(e.target.value) || 0})}
+                                                                                className="w-full text-center border-b-2 border-purple-300 focus:border-purple-600 outline-none bg-purple-50"
+                                                                            />
+                                                                        ) : (
+                                                                            <span className={previewOrder.status === 'aprobacion_pendiente' ? 'text-slate-500' : ''}>
+                                                                                {item.reviewed_qty ?? item.requested_qty}
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    {previewOrder.status === 'aprobacion_pendiente' && (
+                                                                        <td className="px-4 py-3 text-center font-bold text-lg border-l border-slate-300 bg-orange-50">
+                                                                            {isManagerMode ? (
+                                                                                <input 
+                                                                                    type="number"
+                                                                                    min={0}
+                                                                                    value={editableItems[item.id] ?? ''}
+                                                                                    onChange={(e) => setEditableItems({...editableItems, [item.id]: parseInt(e.target.value) || 0})}
+                                                                                    className="w-full text-center border-b-2 border-orange-300 focus:border-orange-600 outline-none bg-transparent"
+                                                                                />
+                                                                            ) : (
+                                                                                item.dispatch_qty ?? item.reviewed_qty ?? item.requested_qty
+                                                                            )}
+                                                                        </td>
+                                                                    )}
+                                                                </>
+                                                            ) : (
+                                                                <td className="px-4 py-3 text-center font-bold text-lg border-l border-slate-300 bg-slate-50/50">
+                                                                    {item.dispatch_qty}
+                                                                </td>
+                                                            )}
+                                                            
+                                                            {isEventDispatch && !(previewOrder.status === 'revision_pendiente' || previewOrder.status === 'aprobacion_pendiente') && (
+                                                                <>
+                                                                    <td className="px-4 py-3 border-l border-slate-300"></td>
+                                                                    <td className="px-4 py-3 border-l border-slate-300"></td>
+                                                                </>
+                                                            )}
+                                                        </tr>
+                                                    )})}
+                                                    {previewItems.length === 0 && (
+                                                        <tr><td colSpan={isEventDispatch ? 5 : 4} className="p-8 text-center text-slate-400 italic">No hay productos en esta orden.</td></tr>
+                                                    )}
+                                                </tbody>
+                                                {!(previewOrder.status === 'revision_pendiente' || previewOrder.status === 'aprobacion_pendiente') && (
+                                                    <tfoot className="border-t-2 border-slate-800 bg-slate-50">
+                                                        <tr>
+                                                            <td colSpan={isEventDispatch ? 2 : 3} className="px-4 py-3 text-right font-bold uppercase text-xs">Total de Unidades a Despachar:</td>
+                                                            <td className="px-4 py-3 text-center font-black text-xl border-l border-slate-300">
+                                                                {previewItems.reduce((acc, curr) => acc + curr.dispatch_qty, 0)}
                                                             </td>
                                                             {isEventDispatch && (
                                                                 <>
@@ -516,26 +755,48 @@ export const DispatchHistory = () => {
                                                                 </>
                                                             )}
                                                         </tr>
-                                                    ))}
-                                                    {previewItems.length === 0 && (
-                                                        <tr><td colSpan={isEventDispatch ? 5 : 4} className="p-8 text-center text-slate-400 italic">No hay productos en esta orden.</td></tr>
-                                                    )}
-                                                </tbody>
-                                                <tfoot className="border-t-2 border-slate-800 bg-slate-50">
-                                                    <tr>
-                                                        <td colSpan={isEventDispatch ? 2 : 3} className="px-4 py-3 text-right font-bold uppercase text-xs">Total de Unidades a Despachar:</td>
-                                                        <td className="px-4 py-3 text-center font-black text-xl border-l border-slate-300">
-                                                            {previewItems.reduce((acc, curr) => acc + curr.dispatch_qty, 0)}
-                                                        </td>
-                                                        {isEventDispatch && (
-                                                            <>
-                                                                <td className="px-4 py-3 border-l border-slate-300"></td>
-                                                                <td className="px-4 py-3 border-l border-slate-300"></td>
-                                                            </>
-                                                        )}
-                                                    </tr>
-                                                </tfoot>
+                                                    </tfoot>
+                                                )}
                                             </table>
+                                            
+                                            {/* Action Panel for Reviews */}
+                                            {(previewOrder.status === 'revision_pendiente' && user?.id === previewOrder.reviewer_id) && (
+                                                <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-xl print:hidden flex items-center justify-between">
+                                                    <div className="flex flex-col gap-1">
+                                                        <label className="text-xs font-bold text-purple-700 uppercase">Enviar a Revisor</label>
+                                                        <select
+                                                            value={selectedManagerId}
+                                                            onChange={(e) => setSelectedManagerId(e.target.value)}
+                                                            className="px-3 py-1.5 rounded-lg border border-purple-300 bg-white text-sm outline-none w-64"
+                                                        >
+                                                            <option value="">Seleccione un usuario...</option>
+                                                            {managers.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <button
+                                                        onClick={handleSaveReview}
+                                                        disabled={savingReview || !selectedManagerId}
+                                                        className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-xl font-bold transition-all disabled:opacity-50 flex items-center gap-2"
+                                                    >
+                                                        {savingReview && <Loader2 size={16} className="animate-spin" />}
+                                                        Guardar y Enviar a Aprobación
+                                                    </button>
+                                                </div>
+                                            )}
+                                            
+                                            {(previewOrder.status === 'aprobacion_pendiente' && profile?.role === 'gerente') && (
+                                                <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-xl print:hidden flex items-center justify-end">
+                                                    <button
+                                                        onClick={handleSaveReview}
+                                                        disabled={savingReview}
+                                                        className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2 rounded-xl font-bold transition-all disabled:opacity-50 flex items-center gap-2"
+                                                    >
+                                                        {savingReview && <Loader2 size={16} className="animate-spin" />}
+                                                        Aprobar Orden
+                                                    </button>
+                                                </div>
+                                            )}
+                                            
                                         </div>
 
                                         {/* SIGNATURES */}
@@ -574,7 +835,7 @@ export const DispatchHistory = () => {
             )}
 
             <div className="print:hidden">
-                <AlertModal isOpen={alertOpen} message={alertMessage} onClose={() => setAlertOpen(false)} />
+                <AlertModal isOpen={alertOpen} message={alertMessage} type={alertType} onClose={() => setAlertOpen(false)} />
                 <ConfirmModal 
                     isOpen={confirmModal.open}
                     title="¿Proceder con la acción?"
