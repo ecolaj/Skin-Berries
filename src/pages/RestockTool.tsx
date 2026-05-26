@@ -30,6 +30,7 @@ export const RestockTool = () => {
     const [generatingOrder, setGeneratingOrder] = useState(false);
     const [calculated, setCalculated] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [downloadingCsv, setDownloadingCsv] = useState(false);
     
     // Reviewers for Event workflow
     const [reviewers, setReviewers] = useState<{ id: string, full_name: string | null, email: string | null }[]>([]);
@@ -300,6 +301,91 @@ export const RestockTool = () => {
         }
     };
 
+    const handleDownloadMinStock = async () => {
+        setDownloadingCsv(true);
+        try {
+            let allRecords: any[] = [];
+            let page = 0;
+            const pageSize = 1000;
+            let hasMore = true;
+
+            while (hasMore) {
+                const from = page * pageSize;
+                const to = from + pageSize - 1;
+
+                const { data, error } = await supabase
+                    .from('store_inventory')
+                    .select(`
+                        store_id,
+                        product_id,
+                        current_stock,
+                        base_stock,
+                        stores ( name ),
+                        products ( name, sku, barcode )
+                    `)
+                    .range(from, to);
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    allRecords = allRecords.concat(data);
+                    page++;
+                    if (data.length < pageSize) {
+                        hasMore = false;
+                    }
+                } else {
+                    hasMore = false;
+                }
+            }
+
+            // Ordenar por Tienda y luego por Producto
+            allRecords.sort((a, b) => {
+                const storeA = (a.stores?.name || '').toLowerCase();
+                const storeB = (b.stores?.name || '').toLowerCase();
+                if (storeA !== storeB) return storeA.localeCompare(storeB);
+                
+                const prodA = (a.products?.name || '').toLowerCase();
+                const prodB = (b.products?.name || '').toLowerCase();
+                return prodA.localeCompare(prodB);
+            });
+
+            // Crear contenido CSV con BOM
+            let csvContent = '\uFEFF'; // UTF-8 BOM
+            csvContent += 'Tienda;SKU;Código de Barras;Producto;Stock Mínimo (Base);Existencia Actual\n';
+
+            allRecords.forEach(item => {
+                const storeName = item.stores?.name || '';
+                const sku = item.products?.sku || '';
+                const barcode = item.products?.barcode || '';
+                const productName = item.products?.name || '';
+                const baseStock = item.base_stock !== undefined ? item.base_stock : 0;
+                const currentStock = item.current_stock !== undefined ? item.current_stock : 0;
+
+                const escapedStore = storeName.replace(/"/g, '""');
+                const escapedProduct = productName.replace(/"/g, '""');
+
+                csvContent += `"${escapedStore}";"${sku}";"${barcode}";"${escapedProduct}";${baseStock};${currentStock}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `stock_minimo_productos_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            setSuccessMessage('✅ CSV descargado exitosamente.');
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (error: any) {
+            showAlert('Error al generar el CSV: ' + error.message);
+        } finally {
+            setDownloadingCsv(false);
+        }
+    };
+
     const totalDispatch = dispatchRows.reduce((acc, r) => acc + r.dispatch_qty, 0);
 
     return (
@@ -420,6 +506,17 @@ export const RestockTool = () => {
                         )}
                     </div>
                     <div className="flex items-center gap-2">
+                        {userRole === 'admin' && (
+                            <button
+                                onClick={handleDownloadMinStock}
+                                disabled={downloadingCsv}
+                                className="flex items-center gap-1.5 px-4 py-1.5 text-sm border border-slate-300 text-slate-700 bg-white rounded-lg hover:bg-slate-50 font-medium transition-all disabled:opacity-60"
+                                title="Exportar Stock Mínimo de todas las tiendas"
+                            >
+                                {downloadingCsv ? <Loader2 className="animate-spin" size={15} /> : <FileDown size={15} />}
+                                Exportar Stock Mínimo
+                            </button>
+                        )}
                         {calculated && (
                             <button
                                 onClick={() => setCalculated(false)}
